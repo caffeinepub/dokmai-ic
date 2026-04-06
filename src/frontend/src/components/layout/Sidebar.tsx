@@ -12,6 +12,7 @@ import {
   User,
 } from "lucide-react";
 import { useState } from "react";
+import dokmaiLogo from "/assets/generated/dokmai-logo-v2-transparent.dim_512x512.png";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useIsAdmin } from "../../hooks/useQueries";
 
@@ -33,7 +34,7 @@ const bottomItems = [
 export default function Sidebar() {
   const { t } = useLanguage();
   const location = useLocation();
-  const { data: isAdmin } = useIsAdmin();
+  const { data: isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const [collapsed, setCollapsed] = useState(false);
 
   const labelMap: Record<string, string> = {
@@ -48,8 +49,9 @@ export default function Sidebar() {
     help: t.navHelp,
   };
 
+  // Show admin menu if isAdmin is true, or while still loading (to avoid flicker)
   const visibleNavItems = navItems.filter(
-    (item) => item.key !== "admin" || isAdmin,
+    (item) => item.key !== "admin" || isAdmin || isAdminLoading,
   );
 
   return (
@@ -69,16 +71,16 @@ export default function Sidebar() {
         style={{ borderColor: "#1A3354" }}
       >
         <div
-          className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden"
+          className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center"
           style={{
             background: "linear-gradient(135deg, #22D3EE22, #A855F722)",
             border: "1px solid rgba(34,211,238,0.3)",
           }}
         >
           <img
-            src="/assets/generated/dokmai-logo-transparent.dim_120x120.png"
+            src={dokmaiLogo}
             alt="Dokmai IC"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         </div>
         {!collapsed && (
