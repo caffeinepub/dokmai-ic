@@ -1,39 +1,24 @@
 # Dokmai IC
 
 ## Current State
-
-Admin Panel has 2 sections implemented:
-- User Management (v19): view users with Principal ID, block/unblock, delete, usage stats
-- Feedback Management (v20/v21): filter tabs, mark read/resolved, delete, admin reply visible to users
-
-Backend has: `getActiveUserCount`, `listAllUsersWithPrincipals`, feedback CRUD with reply, password/notes CRUD.
-
-No system-level stats or login activity tracking exists yet.
+The app uses a "First Admin" pattern where the first principal to call `_initializeAccessControlWithSecret` with the correct `CAFFEINE_ADMIN_TOKEN` becomes admin. No principal is currently hardcoded as admin, making it impossible to access the admin panel without knowing the token.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `getSystemStats` query — returns total users, blocked users count, total passwords, total notes, total feedback, unread feedback count
-- Backend: `recordLoginActivity` shared call — records a login event (Principal, timestamp) in a stable log
-- Backend: `getLoginActivityLog` query (admin only) — returns array of `LoginActivity` records (principal, timestamp, loginCount)
-- Frontend: `SystemMonitoringSection` component added to AdminPage, positioned above UserManagement
-  - Overview cards: Total Users, Blocked Users, Unread Feedback, Total Passwords, Total Notes, Total Feedback
-  - Login Activity Log table: Principal ID (truncated + copy), timestamp of last login, login count
+- `isHardcodedAdmin()` helper function in `access-control.mo` that checks against the fixed Principal ID `das6p-4z7ap-pfikd-uyqal-be35z-ijkl6-gqwz6-npfvx-7sf5b-ekchz-vqe`
+- `initializeAdmin()` function that registers the hardcoded admin without a token check
 
 ### Modify
-- `AdminPage.tsx`: Add `SystemMonitoringSection` between stats row and UserManagementSection
-- `useQueries.ts`: Add `useSystemStats` and `useLoginActivityLog` hooks
-- `main.mo`: Add `SystemStats` type, `LoginActivity` type, `loginActivityLog` stable var, `getSystemStats`, `recordLoginActivity`, `getLoginActivityLog` functions
+- `access-control.mo`: `isAdmin()`, `getUserRole()`, `initialize()` — all short-circuit to return admin for the hardcoded principal without any token or map lookup
+- `MixinAuthorization.mo`: `_initializeAccessControlWithSecret()` — if caller is hardcoded admin, call `initializeAdmin()` directly (bypasses token check)
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-
-1. Add `LoginActivity` type and `loginActivityLog` stable map to backend
-2. Add `getSystemStats` query (admin only): aggregates user/feedback/password/note counts across all vaults
-3. Add `recordLoginActivity` shared call: upsert login record for caller (increment count, update timestamp)
-4. Add `getLoginActivityLog` query (admin only): return sorted login activity array
-5. Regenerate backend bindings
-6. Add `useSystemStats` and `useLoginActivityLog` hooks to `useQueries.ts`
-7. Build `SystemMonitoringSection` in AdminPage with overview stat cards and login activity table
+1. ✅ Add `HARDCODED_ADMIN` constant and `isHardcodedAdmin()` to `access-control.mo`
+2. ✅ Add `initializeAdmin()` to register admin without token
+3. ✅ Update `isAdmin()`, `getUserRole()`, `initialize()` to short-circuit for hardcoded admin
+4. ✅ Update `MixinAuthorization.mo` to call `initializeAdmin()` when caller is hardcoded admin
+5. No frontend changes needed — `useActor.ts` already calls `_initializeAccessControlWithSecret` on login which now correctly handles the hardcoded admin

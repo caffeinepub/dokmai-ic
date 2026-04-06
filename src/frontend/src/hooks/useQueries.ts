@@ -413,3 +413,57 @@ export function useRecordLoginActivity() {
     },
   });
 }
+
+export function useSystemAnnouncement() {
+  const { actor, isFetching } = useActor();
+  return useQuery<string | null>({
+    queryKey: ["systemAnnouncement"],
+    queryFn: async () => {
+      if (!actor) return null;
+      const result = await (actor as any).getSystemAnnouncement();
+      // Motoko optional: [] | [string]
+      if (!result || result.length === 0) return null;
+      return result[0] as string;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSetSystemAnnouncement() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (text: string | null) => {
+      if (!actor) throw new Error("Actor not ready");
+      const opt = text ? [text] : [];
+      await (actor as any).setSystemAnnouncement(opt);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["systemAnnouncement"] }),
+  });
+}
+
+export function useMaintenanceMode() {
+  const { actor, isFetching } = useActor();
+  return useQuery<boolean>({
+    queryKey: ["maintenanceMode"],
+    queryFn: async () => {
+      if (!actor) return false;
+      const result = await (actor as any).getMaintenanceMode();
+      return Boolean(result);
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 30000,
+  });
+}
+
+export function useSetMaintenanceMode() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (!actor) throw new Error("Actor not ready");
+      await (actor as any).setMaintenanceMode(enabled);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["maintenanceMode"] }),
+  });
+}

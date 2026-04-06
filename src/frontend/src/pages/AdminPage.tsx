@@ -10,18 +10,22 @@ import {
   Inbox,
   KeyRound,
   Loader2,
+  Megaphone,
   MessageSquare,
   Reply,
+  Settings,
   ShieldCheck,
   ShieldOff,
   Trash2,
   User,
   Users,
+  Wrench,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { LoginActivity, UserWithPrincipal } from "../backend.d";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
   Dialog,
@@ -31,6 +35,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import { Separator } from "../components/ui/separator";
+import { Switch } from "../components/ui/switch";
 import { Textarea } from "../components/ui/textarea";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
@@ -43,8 +49,12 @@ import {
   useBlockUser,
   useIsAdmin,
   useLoginActivityLog,
+  useMaintenanceMode,
   useMarkFeedbackAsRead,
   useMarkFeedbackAsResolved,
+  useSetMaintenanceMode,
+  useSetSystemAnnouncement,
+  useSystemAnnouncement,
   useSystemStats,
   useUnblockUser,
 } from "../hooks/useQueries";
@@ -1398,6 +1408,357 @@ function SystemMonitoringSection() {
   );
 }
 
+function MaintenanceModeSubSection() {
+  const { data: maintenanceMode, isLoading } = useMaintenanceMode();
+  const setMaintenance = useSetMaintenanceMode();
+  const isActive = maintenanceMode === true;
+
+  const handleToggle = async () => {
+    try {
+      await setMaintenance.mutateAsync(!isActive);
+      if (!isActive) {
+        toast.success(
+          "Maintenance mode enabled. Non-admin users will see the maintenance page.",
+        );
+      } else {
+        toast.success(
+          "Maintenance mode disabled. App is accessible to all users.",
+        );
+      }
+    } catch {
+      toast.error("Failed to update maintenance mode.");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Section label */}
+      <div className="flex items-center gap-2">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "rgba(234,179,8,0.12)",
+            border: "1px solid rgba(234,179,8,0.2)",
+          }}
+        >
+          <Wrench size={14} style={{ color: "#eab308" }} />
+        </div>
+        <h4 className="font-semibold text-sm" style={{ color: "#EAF2FF" }}>
+          Maintenance Mode
+        </h4>
+        {isLoading ? (
+          <Loader2
+            className="ml-auto animate-spin"
+            size={14}
+            style={{ color: "#9BB0C9" }}
+          />
+        ) : (
+          <Badge
+            className="ml-auto text-xs font-semibold"
+            style={
+              isActive
+                ? {
+                    background: "rgba(239,68,68,0.12)",
+                    color: "#ef4444",
+                    border: "1px solid rgba(239,68,68,0.25)",
+                  }
+                : {
+                    background: "rgba(34,197,94,0.1)",
+                    color: "#22c55e",
+                    border: "1px solid rgba(34,197,94,0.2)",
+                  }
+            }
+          >
+            {isActive ? "Active" : "Inactive"}
+          </Badge>
+        )}
+      </div>
+
+      {/* Description */}
+      <p className="text-xs leading-relaxed" style={{ color: "#9BB0C9" }}>
+        When enabled, non-admin users will see a maintenance page and cannot
+        access the app. Admins retain full access at all times.
+      </p>
+
+      {/* Toggle row */}
+      <div
+        className="flex items-center justify-between p-4 rounded-xl"
+        style={{
+          background: isActive
+            ? "rgba(239,68,68,0.05)"
+            : "rgba(34,197,94,0.04)",
+          border: isActive
+            ? "1px solid rgba(239,68,68,0.12)"
+            : "1px solid rgba(34,197,94,0.1)",
+        }}
+        data-ocid="admin.maintenance.panel"
+      >
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium" style={{ color: "#EAF2FF" }}>
+            {isActive ? "System is under maintenance" : "System is operational"}
+          </span>
+          <span className="text-xs" style={{ color: "#9BB0C9" }}>
+            {isActive
+              ? "Non-admin users cannot log in or access the app"
+              : "All users can access the app normally"}
+          </span>
+        </div>
+        <Switch
+          checked={isActive}
+          onCheckedChange={handleToggle}
+          disabled={isLoading || setMaintenance.isPending}
+          data-ocid="admin.maintenance.switch"
+          style={{
+            // @ts-ignore
+            "--switch-thumb-color": "#fff",
+          }}
+        />
+      </div>
+
+      {/* Action button */}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleToggle}
+          disabled={isLoading || setMaintenance.isPending}
+          data-ocid="admin.maintenance.toggle"
+          style={
+            isActive
+              ? {
+                  background: "rgba(34,197,94,0.12)",
+                  color: "#22c55e",
+                  border: "1px solid rgba(34,197,94,0.25)",
+                }
+              : {
+                  background: "rgba(239,68,68,0.1)",
+                  color: "#ef4444",
+                  border: "1px solid rgba(239,68,68,0.22)",
+                }
+          }
+        >
+          {setMaintenance.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Wrench size={14} className="mr-2" />
+          )}
+          {setMaintenance.isPending
+            ? "Updating..."
+            : isActive
+              ? "Disable Maintenance"
+              : "Enable Maintenance"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SystemSettingsSection() {
+  const { data: currentAnnouncement, isLoading } = useSystemAnnouncement();
+  const setAnnouncement = useSetSystemAnnouncement();
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (currentAnnouncement !== undefined) {
+      setText(currentAnnouncement ?? "");
+    }
+  }, [currentAnnouncement]);
+
+  const handleSave = async () => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      toast.error("Announcement text cannot be empty.");
+      return;
+    }
+    try {
+      await setAnnouncement.mutateAsync(trimmed);
+      toast.success("Announcement saved successfully.");
+    } catch {
+      toast.error("Failed to save announcement.");
+    }
+  };
+
+  const handleClear = async () => {
+    try {
+      await setAnnouncement.mutateAsync(null);
+      setText("");
+      toast.success("Announcement cleared.");
+    } catch {
+      toast.error("Failed to clear announcement.");
+    }
+  };
+
+  return (
+    <div
+      className="card-gradient-border p-5 flex flex-col gap-5"
+      data-ocid="admin.settings.panel"
+    >
+      {/* Section header */}
+      <div className="flex items-center gap-2">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "rgba(234,179,8,0.12)",
+            border: "1px solid rgba(234,179,8,0.2)",
+          }}
+        >
+          <Settings size={14} style={{ color: "#eab308" }} />
+        </div>
+        <h3 className="font-semibold" style={{ color: "#EAF2FF" }}>
+          System Settings
+        </h3>
+        <span
+          className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium"
+          style={{
+            background: "rgba(234,179,8,0.08)",
+            color: "#eab308",
+            border: "1px solid rgba(234,179,8,0.18)",
+          }}
+        >
+          Announcement
+        </span>
+      </div>
+
+      {/* Description */}
+      <div
+        className="flex items-start gap-3 p-3 rounded-xl"
+        style={{
+          background: "rgba(234,179,8,0.05)",
+          border: "1px solid rgba(234,179,8,0.12)",
+        }}
+      >
+        <Megaphone
+          size={16}
+          style={{ color: "#eab308", flexShrink: 0, marginTop: 2 }}
+        />
+        <p className="text-xs leading-relaxed" style={{ color: "#9BB0C9" }}>
+          The announcement message will appear as a dismissible banner on the
+          user dashboard and as a popup modal when users first log in each
+          session.
+        </p>
+      </div>
+
+      {/* Textarea */}
+      {isLoading ? (
+        <div
+          className="flex items-center gap-2 py-4"
+          data-ocid="admin.settings.loading_state"
+        >
+          <Loader2
+            className="animate-spin"
+            size={16}
+            style={{ color: "#22D3EE" }}
+          />
+          <span className="text-sm" style={{ color: "#9BB0C9" }}>
+            Loading announcement...
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor="announcement-textarea"
+              className="text-xs font-medium"
+              style={{ color: "#EAF2FF" }}
+            >
+              Announcement Message
+            </label>
+            <span
+              className="text-xs font-mono"
+              style={{ color: text.length > 500 ? "#ef4444" : "#9BB0C9" }}
+            >
+              {text.length} / 500
+            </span>
+          </div>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value.slice(0, 500))}
+            placeholder="Enter announcement message..."
+            rows={4}
+            id="announcement-textarea"
+            data-ocid="admin.settings.textarea"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid #1A3354",
+              color: "#EAF2FF",
+              resize: "vertical",
+            }}
+          />
+        </div>
+      )}
+
+      {/* Current active announcement preview */}
+      {currentAnnouncement && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-start gap-2 p-3 rounded-xl"
+          style={{
+            background: "rgba(34,211,238,0.05)",
+            border: "1px solid rgba(34,211,238,0.15)",
+          }}
+        >
+          <Check
+            size={14}
+            style={{ color: "#22D3EE", flexShrink: 0, marginTop: 2 }}
+          />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-xs font-medium" style={{ color: "#22D3EE" }}>
+              Active Announcement
+            </span>
+            <span
+              className="text-xs leading-relaxed line-clamp-2"
+              style={{ color: "#9BB0C9" }}
+            >
+              {currentAnnouncement}
+            </span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button
+          onClick={handleSave}
+          disabled={setAnnouncement.isPending || !text.trim()}
+          data-ocid="admin.settings.save_button"
+          style={{
+            background: "linear-gradient(135deg, #22D3EE, #A855F7)",
+            color: "#fff",
+            border: "none",
+          }}
+        >
+          {setAnnouncement.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Megaphone size={14} className="mr-2" />
+          )}
+          {setAnnouncement.isPending ? "Saving..." : "Save Announcement"}
+        </Button>
+
+        {currentAnnouncement && (
+          <Button
+            variant="ghost"
+            onClick={handleClear}
+            disabled={setAnnouncement.isPending}
+            data-ocid="admin.settings.delete_button"
+            style={{
+              color: "#ef4444",
+              border: "1px solid rgba(239,68,68,0.2)",
+              background: "rgba(239,68,68,0.06)",
+            }}
+          >
+            <Trash2 size={14} className="mr-2" />
+            Clear Announcement
+          </Button>
+        )}
+      </div>
+
+      {/* Maintenance Mode Section */}
+      <Separator style={{ background: "rgba(255,255,255,0.06)" }} />
+      <MaintenanceModeSubSection />
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { t } = useLanguage();
   const { data: isAdmin, isLoading: checkingAdmin } = useIsAdmin();
@@ -1511,6 +1872,9 @@ export default function AdminPage() {
 
       {/* User Feedback */}
       <FeedbackSection />
+
+      {/* System Settings */}
+      <SystemSettingsSection />
     </div>
   );
 }

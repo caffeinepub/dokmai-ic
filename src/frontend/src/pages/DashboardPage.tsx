@@ -6,14 +6,20 @@ import {
   KeyRound,
   Lightbulb,
   Lock,
+  Megaphone,
   ShieldCheck,
   TrendingUp,
+  X,
 } from "lucide-react";
-import { motion } from "motion/react";
-import { useMemo } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useMemo, useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { usePasswordEntries, useSecureNotes } from "../hooks/useQueries";
+import {
+  usePasswordEntries,
+  useSecureNotes,
+  useSystemAnnouncement,
+} from "../hooks/useQueries";
 
 function BentoCard({
   children,
@@ -74,6 +80,51 @@ const RECENT_ACTIVITIES = [
   { label: "New note created", time: "1 hr ago" },
 ];
 
+function AnnouncementBanner() {
+  const { data: announcement } = useSystemAnnouncement();
+  const [dismissed, setDismissed] = useState(false);
+
+  if (!announcement || dismissed) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: -10, scaleY: 0.95 }}
+        animate={{ opacity: 1, y: 0, scaleY: 1 }}
+        exit={{ opacity: 0, y: -10, scaleY: 0.95 }}
+        transition={{ duration: 0.25 }}
+        className="flex items-start gap-3 px-4 py-3 rounded-xl"
+        data-ocid="dashboard.announcement.panel"
+        style={{
+          background: "rgba(234,179,8,0.08)",
+          border: "1px solid rgba(234,179,8,0.25)",
+        }}
+      >
+        <Megaphone
+          size={16}
+          style={{ color: "#eab308", flexShrink: 0, marginTop: 1 }}
+        />
+        <p
+          className="text-sm flex-1 leading-relaxed"
+          style={{ color: "#fde68a" }}
+        >
+          {announcement}
+        </p>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          data-ocid="dashboard.announcement.close_button"
+          className="flex-shrink-0 p-0.5 rounded-md transition-colors hover:bg-yellow-500/10"
+          style={{ color: "#eab308" }}
+          aria-label="Dismiss announcement"
+        >
+          <X size={14} />
+        </button>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export default function DashboardPage() {
   const { t } = useLanguage();
   const { identity } = useInternetIdentity();
@@ -91,6 +142,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <AnnouncementBanner />
       <div
         className="grid gap-5"
         style={{

@@ -1,5 +1,4 @@
 import Text "mo:core/Text";
-import Principal "mo:core/Principal";
 import Order "mo:core/Order";
 import Map "mo:core/Map";
 import Set "mo:core/Set";
@@ -158,7 +157,7 @@ actor {
     };
   };
 
-  module Principal {
+  module _Principal {
     public func compare(principal1 : Principal, principal2 : Principal) : Order.Order {
       principal1.toBlob().compare(principal2.toBlob());
     };
@@ -176,6 +175,8 @@ actor {
   var feedbackIdCounter : Nat = 0;
 
   // V2 stable store — kept with original type to avoid compatibility errors
+  var systemAnnouncement : ?Text = null;
+  var maintenanceMode : Bool = false;
   let feedbackEntriesV2 = Map.empty<Principal, [FeedbackV2]>();
   var feedbackMigrated : Bool = false;
 
@@ -214,7 +215,7 @@ actor {
   };
 
   // Sync v3 back to v2 (for stable persistence — stores without reply fields)
-  func syncV3ToV2() {
+  func _syncV3ToV2() {
     for ((principal, v3Feedbacks) in feedbackEntriesV3.entries()) {
       let v2 = v3Feedbacks.map(func(fb : Feedback) : FeedbackV2 {
         { id = fb.id; message = fb.message; timestamp = fb.timestamp; status = fb.status }
@@ -716,6 +717,35 @@ actor {
       Runtime.trap("Unauthorized: Only admins can view login activity");
     };
     loginActivityLog.values().toArray().sort();
+  };
+
+  // Admin: set or clear system announcement
+  public shared ({ caller }) func setSystemAnnouncement(text : ?Text) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can set system announcements");
+    };
+    systemAnnouncement := text;
+  };
+
+  // All authenticated users: get the current system announcement
+  public query ({ caller }) func getSystemAnnouncement() : async ?Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      return null;
+    };
+    systemAnnouncement;
+  };
+
+  // Admin: enable or disable maintenance mode
+  public shared ({ caller }) func setMaintenanceMode(enabled : Bool) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can set maintenance mode");
+    };
+    maintenanceMode := enabled;
+  };
+
+  // Public: get maintenance mode status (no auth required)
+  public query func getMaintenanceMode() : async Bool {
+    maintenanceMode;
   };
 
 };
