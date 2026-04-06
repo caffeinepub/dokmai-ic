@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "GeneralSans";
+  src: url("/assets/fonts/GeneralSans.woff2") format("woff2");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GeistMono";
+  src: url("/assets/fonts/GeistMono.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 1rem;
+    /* Deep dark navy fintech palette - OKLCH L C H */
+    --background: 0.108 0.028 247;
+    --foreground: 0.942 0.012 247;
+    --card: 0.138 0.035 247;
+    --card-foreground: 0.942 0.012 247;
+    --popover: 0.148 0.04 247;
+    --popover-foreground: 0.942 0.012 247;
+    --primary: 0.82 0.14 203;
+    --primary-foreground: 0.108 0.028 247;
+    --secondary: 0.168 0.045 247;
+    --secondary-foreground: 0.82 0.14 203;
+    --muted: 0.168 0.045 247;
+    --muted-foreground: 0.62 0.045 247;
+    --accent: 0.62 0.18 295;
+    --accent-foreground: 0.942 0.012 247;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+    --border: 0.22 0.04 247;
+    --input: 0.22 0.04 247;
+    --ring: 0.82 0.14 203;
+    --chart-1: 0.82 0.14 203;
+    --chart-2: 0.62 0.18 295;
+    --chart-3: 0.7 0.16 160;
+    --chart-4: 0.75 0.18 60;
+    --chart-5: 0.65 0.2 30;
+    --sidebar: 0.125 0.032 247;
+    --sidebar-foreground: 0.942 0.012 247;
+    --sidebar-primary: 0.82 0.14 203;
+    --sidebar-primary-foreground: 0.108 0.028 247;
+    --sidebar-accent: 0.168 0.045 247;
+    --sidebar-accent-foreground: 0.82 0.14 203;
+    --sidebar-border: 0.22 0.04 247;
+    --sidebar-ring: 0.82 0.14 203;
+
+    /* Custom fintech tokens */
+    --cyan: #22d3ee;
+    --purple: #a855f7;
+    --navy-deep: #071427;
+    --navy-card: #0d1f3a;
+    --navy-sidebar: #0a1a31;
+    --text-primary: #eaf2ff;
+    --text-muted: #9bb0c9;
+    --border-divider: #1a3354;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "GeneralSans", system-ui, sans-serif;
+    background: #071427;
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #071427;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1a3354;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #22d3ee44;
+  }
+}
+
+@layer components {
+  /* Neon glow card */
+  .card-glow {
+    background: #0d1f3a;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.12), 0 0 20px
+      rgba(34, 211, 238, 0.06), 0 4px 24px rgba(0, 0, 0, 0.4);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card-glow:hover {
+    border-color: rgba(34, 211, 238, 0.35);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.22), 0 0 30px
+      rgba(34, 211, 238, 0.1), 0 4px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Gradient border using pseudo-element trick */
+  .card-gradient-border {
+    position: relative;
+    background: #0d1f3a;
+    border-radius: 1.25rem;
+  }
+  .card-gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 1.25rem;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(34, 211, 238, 0.4),
+      rgba(168, 85, 247, 0.4)
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Sidebar nav item active */
+  .nav-active {
+    background: rgba(34, 211, 238, 0.08);
+    border: 1px solid rgba(34, 211, 238, 0.4);
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.2), inset 0 0 8px
+      rgba(34, 211, 238, 0.04);
+  }
+
+  /* Neon gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #22d3ee, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Primary button - cyan pill */
+  .btn-primary {
+    background: #22d3ee;
+    color: #071427;
+    border-radius: 9999px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  .btn-primary:hover {
+    background: #06b6d4;
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+  }
+
+  /* Mono text for IDs */
+  .mono-id {
+    font-family: "GeistMono", monospace;
+    font-size: 0.8rem;
+    background: rgba(34, 211, 238, 0.06);
+    border: 1px solid rgba(34, 211, 238, 0.15);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    word-break: break-all;
+    color: #22d3ee;
+  }
+
+  /* Strength bar */
+  .strength-weak {
+    background: #ef4444;
+  }
+  .strength-fair {
+    background: #f97316;
+  }
+  .strength-good {
+    background: #eab308;
+  }
+  .strength-strong {
+    background: #22c55e;
+  }
+}
