@@ -19,28 +19,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Copy, ExternalLink, Loader2, LogOut } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  LogOut,
+  Upload,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Language } from "../backend.d";
+import {
+  CsvImportModal,
+  type ParsedEntry,
+} from "../components/passwords/CsvImportModal";
 import {
   LANGUAGE_OPTIONS,
   type LangCode,
   useLanguage,
 } from "../contexts/LanguageContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useUpdateUserProfile, useUserProfile } from "../hooks/useQueries";
+import {
+  useAddPassword,
+  usePasswordEntries,
+  useUpdateUserProfile,
+  useUserProfile,
+} from "../hooks/useQueries";
 
 export default function SettingsPage() {
   const { t, lang, setLang } = useLanguage();
   const { identity, clear } = useInternetIdentity();
   const { data: profile } = useUserProfile();
   const { mutate: updateProfile, isPending: isSaving } = useUpdateUserProfile();
+  const { data: passwords } = usePasswordEntries();
+  const { mutateAsync: addPasswordAsync } = useAddPassword();
 
   const principal = identity?.getPrincipal().toText() ?? "";
   const [copiedPrincipal, setCopiedPrincipal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.name ?? "");
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   const copyPrincipal = async () => {
     await navigator.clipboard.writeText(principal);
@@ -65,6 +84,20 @@ export default function SettingsPage() {
       },
     );
   };
+
+  const handleCsvImport = async (entries: ParsedEntry[]) => {
+    for (const entry of entries) {
+      await addPasswordAsync({
+        title: entry.title,
+        username: entry.username,
+        password: entry.password,
+        url: entry.url,
+        notes: entry.notes,
+      });
+    }
+  };
+
+  const existingTitles = (passwords ?? []).map((p) => p.title);
 
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
@@ -186,6 +219,42 @@ export default function SettingsPage() {
             ))}
           </SelectContent>
         </Select>
+      </motion.section>
+
+      {/* Import & Data */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18 }}
+        className="card-gradient-border p-5"
+      >
+        <h3 className="font-semibold mb-3 text-sm" style={{ color: "#22D3EE" }}>
+          {t.csvImport}
+        </h3>
+        <p className="text-sm mb-4" style={{ color: "#9BB0C9" }}>
+          {t.csvImportDesc}
+        </p>
+        <Button
+          data-ocid="settings.csv_import.open_modal_button"
+          onClick={() => setShowCsvImport(true)}
+          className="rounded-full text-sm font-medium"
+          style={{
+            background: "rgba(34,211,238,0.1)",
+            border: "1px solid rgba(34,211,238,0.3)",
+            color: "#22D3EE",
+          }}
+          variant="outline"
+        >
+          <Upload size={14} className="mr-2" />
+          {t.csvImport}
+        </Button>
+
+        <CsvImportModal
+          open={showCsvImport}
+          onClose={() => setShowCsvImport(false)}
+          existingTitles={existingTitles}
+          onImport={handleCsvImport}
+        />
       </motion.section>
 
       {/* Manage II */}

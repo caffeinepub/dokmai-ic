@@ -1,24 +1,41 @@
 # Dokmai IC
 
 ## Current State
-The app uses a "First Admin" pattern where the first principal to call `_initializeAccessControlWithSecret` with the correct `CAFFEINE_ADMIN_TOKEN` becomes admin. No principal is currently hardcoded as admin, making it impossible to access the admin panel without knowing the token.
+- SettingsPage has sections: Profile, Account IDs, Language, Internet Identity, and Save/Logout actions
+- Password entries are stored via `addPasswordEntryToVault` (title, username, password, url, notes, blob)
+- All 9 pages are live; no CSV import feature exists
+- 5-language support via LanguageContext
 
 ## Requested Changes (Diff)
 
 ### Add
-- `isHardcodedAdmin()` helper function in `access-control.mo` that checks against the fixed Principal ID `das6p-4z7ap-pfikd-uyqal-be35z-ijkl6-gqwz6-npfvx-7sf5b-ekchz-vqe`
-- `initializeAdmin()` function that registers the hardcoded admin without a token check
+- CSV Import section in SettingsPage ("Import & Data" section)
+- `CsvImportModal` component that:
+  - Accepts file upload (drag & drop + click)
+  - Parses CSV and auto-detects format (Chrome, LastPass, Bitwarden, generic)
+  - Shows preview table of parsed entries before import
+  - Detects duplicates (same title) against existing passwords
+  - For duplicate entries: shows conflict resolution UI (Skip / Overwrite per row, or bulk Select All Skip / Select All Overwrite)
+  - Imports selected entries via `addPasswordEntryToVault`
+  - Shows import progress and success/error summary
+- New translation keys for CSV import UI in all 5 languages
 
 ### Modify
-- `access-control.mo`: `isAdmin()`, `getUserRole()`, `initialize()` — all short-circuit to return admin for the hardcoded principal without any token or map lookup
-- `MixinAuthorization.mo`: `_initializeAccessControlWithSecret()` — if caller is hardcoded admin, call `initializeAdmin()` directly (bypasses token check)
+- SettingsPage: add new "Import & Data" section with "Import CSV" button (above Save button)
+- LanguageContext: add CSV import translation keys to all 5 language objects
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. ✅ Add `HARDCODED_ADMIN` constant and `isHardcodedAdmin()` to `access-control.mo`
-2. ✅ Add `initializeAdmin()` to register admin without token
-3. ✅ Update `isAdmin()`, `getUserRole()`, `initialize()` to short-circuit for hardcoded admin
-4. ✅ Update `MixinAuthorization.mo` to call `initializeAdmin()` when caller is hardcoded admin
-5. No frontend changes needed — `useActor.ts` already calls `_initializeAccessControlWithSecret` on login which now correctly handles the hardcoded admin
+1. Add CSV import translation keys to LanguageContext (all 5 languages)
+2. Create `src/frontend/src/components/passwords/CsvImportModal.tsx`
+   - File input (drag & drop + click to browse)
+   - CSV parser with auto-detect for Chrome/LastPass/Bitwarden/generic column headers
+   - Preview table with checkboxes per row
+   - Duplicate detection logic (compare title against existing passwords prop)
+   - Per-row conflict resolution: Skip / Overwrite radio buttons for duplicates
+   - Bulk action buttons: "Skip All Duplicates" / "Overwrite All Duplicates"
+   - Import button that calls addPasswordEntryToVault for each selected row
+   - Progress indicator and final summary toast
+3. Update SettingsPage: import CsvImportModal, add "Import & Data" section with trigger button

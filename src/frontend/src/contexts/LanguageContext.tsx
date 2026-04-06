@@ -131,6 +131,21 @@ export interface Translations {
   copy: string;
   search: string;
   noData: string;
+  // CSV Import
+  csvImport: string;
+  csvImportTitle: string;
+  csvImportDesc: string;
+  csvImportDrop: string;
+  csvImportPreview: string;
+  csvImportDuplicates: string;
+  csvImportSkip: string;
+  csvImportOverwrite: string;
+  csvImportSkipAll: string;
+  csvImportOverwriteAll: string;
+  csvImportStart: string;
+  csvImportSuccess: string;
+  csvImportNoFile: string;
+  csvImportInvalid: string;
 }
 
 const translations: Record<LangCode, Translations> = {
@@ -249,6 +264,20 @@ const translations: Record<LangCode, Translations> = {
     copy: "Copy",
     search: "Search...",
     noData: "No data found",
+    csvImport: "Import CSV",
+    csvImportTitle: "Import Passwords from CSV",
+    csvImportDesc: "Supports Chrome, LastPass, Bitwarden, and generic formats",
+    csvImportDrop: "Drop CSV file here or click to browse",
+    csvImportPreview: "entries found",
+    csvImportDuplicates: "duplicates",
+    csvImportSkip: "Skip",
+    csvImportOverwrite: "Overwrite",
+    csvImportSkipAll: "Skip All Duplicates",
+    csvImportOverwriteAll: "Overwrite All Duplicates",
+    csvImportStart: "Import Selected",
+    csvImportSuccess: "Import complete",
+    csvImportNoFile: "No file selected",
+    csvImportInvalid: "Invalid CSV format",
   },
   th: {
     appName: "Dokmai IC",
@@ -363,6 +392,20 @@ const translations: Record<LangCode, Translations> = {
     copy: "คัดลอก",
     search: "ค้นหา...",
     noData: "ไม่พบข้อมูล",
+    csvImport: "นำเข้า CSV",
+    csvImportTitle: "นำเข้ารหัสผ่านจาก CSV",
+    csvImportDesc: "รองรับ Chrome, LastPass, Bitwarden และรูปแบบทั่วไป",
+    csvImportDrop: "วางไฟล์ CSV ที่นี่หรือคลิกเพื่อเลือกไฟล์",
+    csvImportPreview: "รายการที่พบ",
+    csvImportDuplicates: "รายการซ้ำ",
+    csvImportSkip: "ข้าม",
+    csvImportOverwrite: "เขียนทับ",
+    csvImportSkipAll: "ข้ามรายการซ้ำทั้งหมด",
+    csvImportOverwriteAll: "เขียนทับรายการซ้ำทั้งหมด",
+    csvImportStart: "นำเข้ารายการที่เลือก",
+    csvImportSuccess: "นำเข้าเสร็จสมบูรณ์",
+    csvImportNoFile: "ยังไม่ได้เลือกไฟล์",
+    csvImportInvalid: "รูปแบบ CSV ไม่ถูกต้อง",
   },
   nl: {
     appName: "Dokmai IC",
@@ -479,6 +522,21 @@ const translations: Record<LangCode, Translations> = {
     copy: "Kopiëren",
     search: "Zoeken...",
     noData: "Geen gegevens gevonden",
+    csvImport: "CSV importeren",
+    csvImportTitle: "Wachtwoorden importeren uit CSV",
+    csvImportDesc:
+      "Ondersteunt Chrome, LastPass, Bitwarden en generieke formaten",
+    csvImportDrop: "Sleep CSV-bestand hierheen of klik om te bladeren",
+    csvImportPreview: "gevonden items",
+    csvImportDuplicates: "duplicaten",
+    csvImportSkip: "Overslaan",
+    csvImportOverwrite: "Overschrijven",
+    csvImportSkipAll: "Alle duplicaten overslaan",
+    csvImportOverwriteAll: "Alle duplicaten overschrijven",
+    csvImportStart: "Geselecteerde importeren",
+    csvImportSuccess: "Import voltooid",
+    csvImportNoFile: "Geen bestand geselecteerd",
+    csvImportInvalid: "Ongeldig CSV-formaat",
   },
   pl: {
     appName: "Dokmai IC",
@@ -596,6 +654,20 @@ const translations: Record<LangCode, Translations> = {
     copy: "Kopiuj",
     search: "Szukaj...",
     noData: "Nie znaleziono danych",
+    csvImport: "Importuj CSV",
+    csvImportTitle: "Importuj hasła z CSV",
+    csvImportDesc: "Obsługuje Chrome, LastPass, Bitwarden i formaty ogólne",
+    csvImportDrop: "Upuść plik CSV tutaj lub kliknij, aby przeglądać",
+    csvImportPreview: "znalezionych wpisów",
+    csvImportDuplicates: "duplikaty",
+    csvImportSkip: "Pomiń",
+    csvImportOverwrite: "Nadpisz",
+    csvImportSkipAll: "Pomiń wszystkie duplikaty",
+    csvImportOverwriteAll: "Nadpisz wszystkie duplikaty",
+    csvImportStart: "Importuj wybrane",
+    csvImportSuccess: "Import zakończony",
+    csvImportNoFile: "Nie wybrano pliku",
+    csvImportInvalid: "Nieprawidłowy format CSV",
   },
   zh: {
     appName: "Dokmai IC",
@@ -709,6 +781,20 @@ const translations: Record<LangCode, Translations> = {
     copy: "复制",
     search: "搜索...",
     noData: "未找到数据",
+    csvImport: "导入CSV",
+    csvImportTitle: "从CSV导入密码",
+    csvImportDesc: "支持Chrome、LastPass、Bitwarden和通用格式",
+    csvImportDrop: "将CSV文件拖放到此处或点击浏览",
+    csvImportPreview: "条记录",
+    csvImportDuplicates: "重复项",
+    csvImportSkip: "跳过",
+    csvImportOverwrite: "覆盖",
+    csvImportSkipAll: "跳过所有重复项",
+    csvImportOverwriteAll: "覆盖所有重复项",
+    csvImportStart: "导入所选",
+    csvImportSuccess: "导入完成",
+    csvImportNoFile: "未选择文件",
+    csvImportInvalid: "无效的CSV格式",
   },
 };
 
