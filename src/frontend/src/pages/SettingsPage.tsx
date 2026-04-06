@@ -22,6 +22,7 @@ import {
 import {
   Check,
   Copy,
+  Download,
   ExternalLink,
   Loader2,
   LogOut,
@@ -31,6 +32,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Language } from "../backend.d";
+import { CsvExportModal } from "../components/passwords/CsvExportModal";
 import {
   CsvImportModal,
   type ParsedEntry,
@@ -60,6 +62,7 @@ export default function SettingsPage() {
   const [copiedPrincipal, setCopiedPrincipal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.name ?? "");
   const [showCsvImport, setShowCsvImport] = useState(false);
+  const [showCsvExport, setShowCsvExport] = useState(false);
 
   const copyPrincipal = async () => {
     await navigator.clipboard.writeText(principal);
@@ -93,6 +96,10 @@ export default function SettingsPage() {
         password: entry.password,
         url: entry.url,
         notes: entry.notes,
+        email: "",
+        category: "",
+        totp: "",
+        customFields: [],
       });
     }
   };
@@ -229,31 +236,52 @@ export default function SettingsPage() {
         className="card-gradient-border p-5"
       >
         <h3 className="font-semibold mb-3 text-sm" style={{ color: "#22D3EE" }}>
-          {t.csvImport}
+          Import & Export
         </h3>
         <p className="text-sm mb-4" style={{ color: "#9BB0C9" }}>
           {t.csvImportDesc}
         </p>
-        <Button
-          data-ocid="settings.csv_import.open_modal_button"
-          onClick={() => setShowCsvImport(true)}
-          className="rounded-full text-sm font-medium"
-          style={{
-            background: "rgba(34,211,238,0.1)",
-            border: "1px solid rgba(34,211,238,0.3)",
-            color: "#22D3EE",
-          }}
-          variant="outline"
-        >
-          <Upload size={14} className="mr-2" />
-          {t.csvImport}
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            data-ocid="settings.csv_import.open_modal_button"
+            onClick={() => setShowCsvImport(true)}
+            className="rounded-full text-sm font-medium"
+            style={{
+              background: "rgba(34,211,238,0.1)",
+              border: "1px solid rgba(34,211,238,0.3)",
+              color: "#22D3EE",
+            }}
+            variant="outline"
+          >
+            <Upload size={14} className="mr-2" />
+            {t.csvImport}
+          </Button>
+          <Button
+            data-ocid="settings.csv_export.open_modal_button"
+            onClick={() => setShowCsvExport(true)}
+            className="rounded-full text-sm font-medium"
+            style={{
+              background: "rgba(34,211,238,0.1)",
+              border: "1px solid rgba(34,211,238,0.3)",
+              color: "#22D3EE",
+            }}
+            variant="outline"
+          >
+            <Download size={14} className="mr-2" />
+            Export CSV
+          </Button>
+        </div>
 
         <CsvImportModal
           open={showCsvImport}
           onClose={() => setShowCsvImport(false)}
           existingTitles={existingTitles}
           onImport={handleCsvImport}
+        />
+        <CsvExportModal
+          open={showCsvExport}
+          onClose={() => setShowCsvExport(false)}
+          passwords={passwords ?? []}
         />
       </motion.section>
 

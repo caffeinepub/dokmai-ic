@@ -1,41 +1,40 @@
 # Dokmai IC
 
 ## Current State
-- SettingsPage has sections: Profile, Account IDs, Language, Internet Identity, and Save/Logout actions
-- Password entries are stored via `addPasswordEntryToVault` (title, username, password, url, notes, blob)
-- All 9 pages are live; no CSV import feature exists
-- 5-language support via LanguageContext
+- PasswordsPage.tsx: Password entries display in cards. TOTP field exists but only shows bullet dots + copy secret key button. No real-time code generation.
+- SettingsPage.tsx: Has CSV Import modal. No Export functionality yet.
+- Passwords are stored with fields: title, username, password, url, notes, email, category, totp (secret key), customFields.
+- No TOTP library exists in the project — must implement RFC 6238 TOTP using Web Crypto API (client-side only).
 
 ## Requested Changes (Diff)
 
 ### Add
-- CSV Import section in SettingsPage ("Import & Data" section)
-- `CsvImportModal` component that:
-  - Accepts file upload (drag & drop + click)
-  - Parses CSV and auto-detects format (Chrome, LastPass, Bitwarden, generic)
-  - Shows preview table of parsed entries before import
-  - Detects duplicates (same title) against existing passwords
-  - For duplicate entries: shows conflict resolution UI (Skip / Overwrite per row, or bulk Select All Skip / Select All Overwrite)
-  - Imports selected entries via `addPasswordEntryToVault`
-  - Shows import progress and success/error summary
-- New translation keys for CSV import UI in all 5 languages
+- **TOTP Real-time Code Generator** inside PasswordCard component:
+  - When a password entry has a `totp` secret key, show a live 6-digit TOTP code (RFC 6238, SHA-1, 30-second period)
+  - Countdown ring/bar showing seconds remaining before next code
+  - Copy button for the live code (NOT the secret key)
+  - Implemented 100% client-side using Web Crypto API (no external library)
+  - Update every second via `useEffect` + `setInterval`
+- **Export CSV** in SettingsPage:
+  - Button next to Import CSV in the "Import & Data" section
+  - Modal/dialog to choose export format: Chrome / LastPass / Bitwarden / Generic
+  - Generates and downloads CSV file in chosen format
+  - Column mappings per format:
+    - Chrome: `name,url,username,password`
+    - LastPass: `url,username,password,totp,extra,name,grouping,fav`
+    - Bitwarden: `folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp`
+    - Generic: `title,url,username,email,password,notes,category,totp`
 
 ### Modify
-- SettingsPage: add new "Import & Data" section with "Import CSV" button (above Save button)
-- LanguageContext: add CSV import translation keys to all 5 language objects
+- PasswordCard TOTP section: replace static bullet display with live code + countdown
+- SettingsPage Import & Data section: add Export CSV button alongside Import CSV button
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Add CSV import translation keys to LanguageContext (all 5 languages)
-2. Create `src/frontend/src/components/passwords/CsvImportModal.tsx`
-   - File input (drag & drop + click to browse)
-   - CSV parser with auto-detect for Chrome/LastPass/Bitwarden/generic column headers
-   - Preview table with checkboxes per row
-   - Duplicate detection logic (compare title against existing passwords prop)
-   - Per-row conflict resolution: Skip / Overwrite radio buttons for duplicates
-   - Bulk action buttons: "Skip All Duplicates" / "Overwrite All Duplicates"
-   - Import button that calls addPasswordEntryToVault for each selected row
-   - Progress indicator and final summary toast
-3. Update SettingsPage: import CsvImportModal, add "Import & Data" section with trigger button
+1. Create `src/frontend/src/utils/totp.ts` — pure client-side TOTP code generator using Web Crypto API (RFC 6238)
+2. Create `src/frontend/src/hooks/useTotpCode.ts` — React hook that uses the totp util, updates every second, returns `{ code, secondsRemaining }`
+3. Update `PasswordsPage.tsx` — replace the TOTP section in PasswordCard with live code display using `useTotpCode` hook, countdown progress bar, and copy button
+4. Create `src/frontend/src/components/passwords/CsvExportModal.tsx` — modal with format selector (Chrome/LastPass/Bitwarden/Generic) and download button
+5. Update `SettingsPage.tsx` — add Export CSV button that opens CsvExportModal, passing passwords data

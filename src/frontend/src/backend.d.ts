@@ -32,6 +32,11 @@ export interface FeedbackForUser {
     adminReply: string | null;
     adminReplyTimestamp: bigint | null;
 }
+export interface CustomField {
+    name: string;
+    value: string;
+    fieldType: string;
+}
 export interface PasswordEntry {
     url: string;
     title: string;
@@ -39,6 +44,10 @@ export interface PasswordEntry {
     blob?: ExternalBlob;
     password: StrongPassword;
     notes: string;
+    email: string;
+    category: string;
+    totp: string;
+    customFields: CustomField[];
 }
 export type Username = string;
 export interface UserProfile {
@@ -83,7 +92,7 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    addPasswordEntryToVault(title: string, username: Username, password: StrongPassword, url: string, notes: string, blob: ExternalBlob | null): Promise<void>;
+    addPasswordEntryToVault(title: string, username: Username, password: StrongPassword, url: string, notes: string, email: string, category: string, totp: string, customFields: CustomField[], blob: ExternalBlob | null): Promise<void>;
     addSecureNoteToVault(title: string, content: string, blob: ExternalBlob | null): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     deletePasswordEntryFromVault(title: string): Promise<void>;

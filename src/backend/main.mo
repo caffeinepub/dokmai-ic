@@ -18,12 +18,33 @@ actor {
   type StrongPassword = Text;
   type FeedbackStatus = { #unread; #read; #resolved };
 
+  type CustomField = {
+    name : Text;
+    value : Text;
+    fieldType : Text; // "text", "password", "url"
+  };
+
+  // Legacy PasswordEntry type (stable store — original schema, no new fields)
+  type PasswordEntryLegacy = {
+    title : Text;
+    username : Username;
+    password : StrongPassword;
+    url : Text;
+    notes : Text;
+    blob : ?Storage.ExternalBlob;
+  };
+
+  // Current PasswordEntry type (in-memory, with new fields)
   type PasswordEntry = {
     title : Text;
     username : Username;
     password : StrongPassword;
     url : Text;
     notes : Text;
+    email : Text;
+    category : Text;
+    totp : Text;
+    customFields : [CustomField];
     blob : ?Storage.ExternalBlob;
   };
 
@@ -59,6 +80,14 @@ actor {
     };
   };
 
+  // Legacy vault type (stable — uses legacy PasswordEntry without new fields)
+  type PasswordVaultLegacy = {
+    entries : [PasswordEntryLegacy];
+    notes : [SecureNote];
+    profile : UserProfile;
+  };
+
+  // Current vault type (in-memory, with new PasswordEntry)
   type PasswordVault = {
     entries : [PasswordEntry];
     notes : [SecureNote];
@@ -144,7 +173,6 @@ actor {
     };
   };
 
-
   module Feedback {
     public func compare(feedback1 : Feedback, feedback2 : Feedback) : Order.Order {
       Int.compare(feedback1.timestamp, feedback2.timestamp);
@@ -167,7 +195,14 @@ actor {
   include MixinAuthorization(accessControlState);
   include MixinStorage();
   let userIdSet = Set.empty<Principal>();
-  let passwordVaults = Map.empty<Principal, PasswordVault>();
+
+  // Stable store uses legacy type (original schema) to preserve compatibility
+  let passwordVaults = Map.empty<Principal, PasswordVaultLegacy>();
+
+  // In-memory store uses new type (with extended fields)
+  let passwordVaultsV2 = Map.empty<Principal, PasswordVault>();
+  var passwordVaultsMigrated : Bool = false;
+
   // feedbackEntries uses the legacy type to preserve stable compatibility
   let feedbackEntries = Map.empty<Principal, [FeedbackLegacy]>();
   let blockedUsers = Set.empty<Principal>();
@@ -183,6 +218,37 @@ actor {
   // V3 in-memory store with reply support (non-stable, rebuilt on each upgrade from v2)
   let feedbackEntriesV3 = Map.empty<Principal, [Feedback]>();
   var feedbackV3Ready : Bool = false;
+
+  // Migrate legacy passwordVaults -> passwordVaultsV2 (adds default values for new fields)
+  func migratePasswordVaults() {
+    if (passwordVaultsMigrated) return;
+    for ((principal, legacyVault) in passwordVaults.entries()) {
+      let migratedEntries = legacyVault.entries.map(func(e : PasswordEntryLegacy) : PasswordEntry {
+        {
+          title = e.title;
+          username = e.username;
+          password = e.password;
+          url = e.url;
+          notes = e.notes;
+          email = "";
+          category = "";
+          totp = "";
+          customFields = [];
+          blob = e.blob;
+        }
+      });
+      passwordVaultsV2.add(principal, {
+        entries = migratedEntries;
+        notes = legacyVault.notes;
+        profile = legacyVault.profile;
+      });
+    };
+    passwordVaultsMigrated := true;
+  };
+
+  func ensurePasswordVaults() {
+    if (not passwordVaultsMigrated) { migratePasswordVaults() };
+  };
 
   // Migrate legacy -> v2 (runs once)
   func migrateFeedback() {
@@ -225,7 +291,8 @@ actor {
   };
 
   func getPasswordEntryOrTrap(id : Principal, title : Text) : PasswordEntry {
-    switch (passwordVaults.get(id)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(id)) {
       case (?vault) {
         switch (vault.entries.find(func(entry) { entry.title == title })) {
           case (?entry) { entry };
@@ -237,7 +304,8 @@ actor {
   };
 
   func getSecureNoteOrTrap(id : Principal, title : Text) : SecureNote {
-    switch (passwordVaults.get(id)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(id)) {
       case (?vault) {
         switch (vault.notes.find(func(note) { note.title == title })) {
           case (?note) { note };
@@ -248,17 +316,29 @@ actor {
     };
   };
 
-  public shared ({ caller }) func addPasswordEntryToVault(title : Text, username : Username, password : StrongPassword, url : Text, notes : Text, blob : ?Storage.ExternalBlob) : async () {
+  public shared ({ caller }) func addPasswordEntryToVault(
+    title : Text,
+    username : Username,
+    password : StrongPassword,
+    url : Text,
+    notes : Text,
+    email : Text,
+    category : Text,
+    totp : Text,
+    customFields : [CustomField],
+    blob : ?Storage.ExternalBlob
+  ) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can add password entries");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) {
         if (vault.entries.find(func(entry) { entry.title == title }) != null) {
           Runtime.trap("Password entry for title " # title # " already exists.");
         };
-        let newEntry = { title; username; password; url; notes; blob };
-        passwordVaults.add(caller, {
+        let newEntry = { title; username; password; url; notes; email; category; totp; customFields; blob };
+        passwordVaultsV2.add(caller, {
           entries = vault.entries.concat([newEntry]);
           notes = vault.notes;
           profile = vault.profile;
@@ -266,13 +346,13 @@ actor {
       };
       case (null) {
         userIdSet.add(caller);
-        let newEntry = { title; username; password; url; notes; blob };
+        let newEntry = { title; username; password; url; notes; email; category; totp; customFields; blob };
         let newVault = {
           entries = [newEntry];
           notes = [];
           profile = { name = "New User"; language = #en };
         };
-        passwordVaults.add(caller, newVault);
+        passwordVaultsV2.add(caller, newVault);
       };
     };
   };
@@ -288,9 +368,10 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can retrieve password entries");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) { vault.entries };
-      case (null) { Runtime.trap("Password vault not found"); };
+      case (null) { [] };
     };
   };
 
@@ -298,14 +379,15 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can delete password entries");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) {
         let currEntries = vault.entries;
         let filteredEntries = currEntries.filter(func(entry) { entry.title != title });
         if (currEntries.size() == filteredEntries.size()) {
           Runtime.trap("Password entry for title " # title # " does not exist.");
         };
-        passwordVaults.add(caller, { entries = filteredEntries; notes = vault.notes; profile = vault.profile });
+        passwordVaultsV2.add(caller, { entries = filteredEntries; notes = vault.notes; profile = vault.profile });
       };
       case (null) {
         Runtime.trap("Password entry for title " # title # " does not exist.");
@@ -317,17 +399,18 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can add secure notes");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) {
         if (vault.notes.find(func(note) { note.title == title }) != null) { Runtime.trap("Secure note for title " # title # " already exists.") };
         let newNote = { title; content; blob };
-        passwordVaults.add(caller, { entries = vault.entries; notes = vault.notes.concat([newNote]); profile = vault.profile });
+        passwordVaultsV2.add(caller, { entries = vault.entries; notes = vault.notes.concat([newNote]); profile = vault.profile });
       };
       case (null) {
         userIdSet.add(caller);
         let newNote = { title; content; blob };
         let newVault = { entries = []; notes = [newNote]; profile = { name = "New User"; language = #en } };
-        passwordVaults.add(caller, newVault);
+        passwordVaultsV2.add(caller, newVault);
       };
     };
   };
@@ -343,9 +426,10 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can retrieve secure notes");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) { vault.notes.sort() };
-      case (null) { Runtime.trap("Password vault not found") };
+      case (null) { [] };
     };
   };
 
@@ -353,14 +437,15 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can delete secure notes");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) {
         let currNotes = vault.notes;
         let filteredNotes = currNotes.filter(func(note) { note.title != title });
         if (currNotes.size() == filteredNotes.size()) {
           Runtime.trap("Secure note for title " # title # " does not exist.");
         };
-        passwordVaults.add(caller, { entries = vault.entries; notes = filteredNotes; profile = vault.profile });
+        passwordVaultsV2.add(caller, { entries = vault.entries; notes = filteredNotes; profile = vault.profile });
       };
       case (null) {
         Runtime.trap("Secure note for title " # title # " does not exist.");
@@ -525,7 +610,8 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view profiles");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) { vault.profile };
       case (null) { { name = "New User"; language = #en } };
     };
@@ -535,7 +621,8 @@ actor {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
-    switch (passwordVaults.get(user)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(user)) {
       case (?vault) { vault.profile };
       case (null) { { name = "New User"; language = #en } };
     };
@@ -545,7 +632,8 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view profiles");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) { vault.profile };
       case (null) { { name = "New User"; language = #en } };
     };
@@ -555,7 +643,8 @@ actor {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admin can list all user profiles.")
     };
-    let allProfiles = passwordVaults.values().map(func(vault) { vault.profile }).toArray().sort();
+    ensurePasswordVaults();
+    let allProfiles = passwordVaultsV2.values().map(func(vault) { vault.profile }).toArray().sort();
     allProfiles;
   };
 
@@ -564,9 +653,10 @@ actor {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admin can list users with principals.");
     };
+    ensurePasswordVaults();
     var result : [UserWithPrincipal] = [];
     for (principal in userIdSet.values()) {
-      let (name, language, passwordCount, noteCount) = switch (passwordVaults.get(principal)) {
+      let (name, language, passwordCount, noteCount) = switch (passwordVaultsV2.get(principal)) {
         case (?vault) { (vault.profile.name, vault.profile.language, vault.entries.size(), vault.notes.size()) };
         case (null) { ("New User", #en, 0, 0) };
       };
@@ -600,6 +690,7 @@ actor {
       Runtime.trap("Unauthorized: Only admins can delete users");
     };
     passwordVaults.remove(user);
+    passwordVaultsV2.remove(user);
     userIdSet.remove(user);
     feedbackEntries.remove(user);
     feedbackEntriesV2.remove(user);
@@ -612,7 +703,8 @@ actor {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can view user stats");
     };
-    switch (passwordVaults.get(user)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(user)) {
       case (?vault) { { passwordCount = vault.entries.size(); noteCount = vault.notes.size() } };
       case (null) { { passwordCount = 0; noteCount = 0 } };
     };
@@ -630,13 +722,14 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) {
-        passwordVaults.add(caller, { entries = vault.entries; notes = vault.notes; profile = profile });
+        passwordVaultsV2.add(caller, { entries = vault.entries; notes = vault.notes; profile = profile });
       };
       case (null) {
         userIdSet.add(caller);
-        passwordVaults.add(caller, { entries = []; notes = []; profile = profile });
+        passwordVaultsV2.add(caller, { entries = []; notes = []; profile = profile });
       };
     };
   };
@@ -646,13 +739,14 @@ actor {
       Runtime.trap("Unauthorized: Only users can update profiles");
     };
     let updatedProfile = { name; language };
-    switch (passwordVaults.get(caller)) {
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
       case (?vault) {
-        passwordVaults.add(caller, { entries = vault.entries; notes = vault.notes; profile = updatedProfile });
+        passwordVaultsV2.add(caller, { entries = vault.entries; notes = vault.notes; profile = updatedProfile });
       };
       case (null) {
         userIdSet.add(caller);
-        passwordVaults.add(caller, { entries = []; notes = []; profile = updatedProfile });
+        passwordVaultsV2.add(caller, { entries = []; notes = []; profile = updatedProfile });
       };
     };
     updatedProfile;
@@ -670,9 +764,10 @@ actor {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can view system stats");
     };
+    ensurePasswordVaults();
     var totalPasswords : Nat = 0;
     var totalNotes : Nat = 0;
-    for ((_, vault) in passwordVaults.entries()) {
+    for ((_, vault) in passwordVaultsV2.entries()) {
       totalPasswords += vault.entries.size();
       totalNotes += vault.notes.size();
     };

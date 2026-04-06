@@ -1,10 +1,10 @@
 import type { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  CustomField,
   Feedback,
   FeedbackForUser,
   LoginActivity,
-  PasswordEntry,
   SecureNote,
   SystemStats,
   UserProfile,
@@ -24,6 +24,19 @@ export interface FeedbackWithPrincipal {
   adminReplyTimestamp: bigint | null;
 }
 
+// Extended PasswordEntry including new fields added to the backend
+export interface PasswordEntry {
+  url: string;
+  title: string;
+  username: string;
+  password: string;
+  notes: string;
+  email: string;
+  category: string;
+  totp: string;
+  customFields: CustomField[];
+}
+
 // Helper to unwrap Motoko optional ([] | [T]) to T | null
 function unwrapOpt<T>(opt: [] | [T]): T | null {
   if (!opt || opt.length === 0) return null;
@@ -36,7 +49,9 @@ export function usePasswordEntries() {
     queryKey: ["passwords"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllPasswordEntriesFromVault();
+      return actor.getAllPasswordEntriesFromVault() as unknown as Promise<
+        PasswordEntry[]
+      >;
     },
     enabled: !!actor && !isFetching,
   });
@@ -226,14 +241,22 @@ export function useAddPassword() {
       password: string;
       url: string;
       notes: string;
+      email: string;
+      category: string;
+      totp: string;
+      customFields: CustomField[];
     }) => {
       if (!actor) throw new Error("Actor not ready");
-      await actor.addPasswordEntryToVault(
+      await (actor as any).addPasswordEntryToVault(
         data.title,
         data.username,
         data.password,
         data.url,
         data.notes,
+        data.email,
+        data.category,
+        data.totp,
+        data.customFields,
         null,
       );
     },
