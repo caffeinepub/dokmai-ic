@@ -32,6 +32,8 @@ import {
   useSecureNotes,
 } from "../hooks/useQueries";
 
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -89,6 +91,14 @@ export default function VaultPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
+    if (file && file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error(
+        `File too large. Maximum size is 10 MB (your file: ${formatFileSize(file.size)})`,
+      );
+      // reset input
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     setSelectedFile(file);
   };
 
@@ -376,12 +386,14 @@ export default function VaultPage() {
 
             {/* File Attachment Section */}
             <div>
-              <Label
-                className="text-xs mb-1 block"
-                style={{ color: "#9BB0C9" }}
-              >
-                Attachment (optional)
-              </Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs" style={{ color: "#9BB0C9" }}>
+                  Attachment (optional)
+                </Label>
+                <span className="text-xs" style={{ color: "#4A6480" }}>
+                  Max 10 MB · 1 file per note
+                </span>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"

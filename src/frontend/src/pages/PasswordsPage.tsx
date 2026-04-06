@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -20,12 +21,14 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Clock,
   Copy,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
   KeyRound,
   Loader2,
   Mail,
+  Paperclip,
   Plus,
   RotateCcw,
   Search,
@@ -48,6 +51,14 @@ import {
 } from "../hooks/useQueries";
 import type { PasswordEntry } from "../hooks/useQueries";
 import { useTotpCode } from "../hooks/useTotpCode";
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 interface CustomField {
   name: string;
@@ -183,6 +194,7 @@ function PasswordHistoryPanel({
         category: currentEntry.category,
         totp: currentEntry.totp,
         customFields: currentEntry.customFields,
+        existingBlob: currentEntry.blob,
       },
       {
         onSuccess: () => {
@@ -436,6 +448,19 @@ function PasswordCard({
           >
             <Copy size={14} />
           </button>
+          {/* Download attachment button */}
+          {entry.blob && (
+            <button
+              type="button"
+              onClick={() => window.open(entry.blob!.getDirectURL(), "_blank")}
+              className="p-1.5 rounded-lg hover:bg-cyan-500/10 transition-colors"
+              style={{ color: "#22D3EE" }}
+              aria-label="Download attachment"
+              data-ocid="passwords.attachment.download_button"
+            >
+              <Paperclip size={14} />
+            </button>
+          )}
           {/* History toggle */}
           <button
             type="button"
@@ -596,6 +621,7 @@ export default function PasswordsPage() {
   const { mutate: addPassword, isPending: isAdding } = useAddPassword();
 
   const cfCounter = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -606,12 +632,22 @@ export default function PasswordsPage() {
   const [visibleCustomFields, setVisibleCustomFields] = useState<Set<number>>(
     new Set(),
   );
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const filtered = passwords.filter(
     (p) =>
       p.title.toLowerCase().includes(search.toLowerCase()) ||
       p.username.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const resetAddForm = () => {
+    setNewEntry(makeEmptyEntry());
+    setAttachedFile(null);
+    setUploadProgress(null);
+    setVisibleCustomFields(new Set());
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleAdd = () => {
     if (!newEntry.title || !newEntry.password) {
@@ -624,16 +660,40 @@ export default function PasswordsPage() {
       customFields: newEntry.customFields.map(
         ({ _id: _dropped, ...rest }) => rest,
       ),
+      file: attachedFile,
+      onUploadProgress: attachedFile
+        ? (pct: number) => setUploadProgress(pct)
+        : undefined,
     };
+    if (attachedFile) setUploadProgress(0);
     addPassword(payload, {
       onSuccess: () => {
         toast.success("Password saved!");
-        setNewEntry(makeEmptyEntry());
+        resetAddForm();
         setShowAdd(false);
-        setVisibleCustomFields(new Set());
       },
-      onError: (e) => toast.error(`${t.error}: ${e.message}`),
+      onError: (e) => {
+        setUploadProgress(null);
+        toast.error(`${t.error}: ${e.message}`);
+      },
     });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (file && file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error(
+        `File too large. Maximum size is 10 MB (your file: ${formatFileSize(file.size)})`,
+      );
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    setAttachedFile(file);
+  };
+
+  const handleRemoveFile = () => {
+    setAttachedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const addCustomField = () => {
@@ -787,7 +847,13 @@ export default function PasswordsPage() {
       )}
 
       {/* Add Password Dialog */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+      <Dialog
+        open={showAdd}
+        onOpenChange={(open) => {
+          if (!open) resetAddForm();
+          setShowAdd(open);
+        }}
+      >
         <DialogContent
           data-ocid="passwords.add.dialog"
           style={{
@@ -848,7 +914,10 @@ export default function PasswordsPage() {
                 placeholder=""
                 value={newEntry.username}
                 onChange={(e) =>
-                  setNewEntry((prev) => ({ ...prev, username: e.target.value }))
+                  setNewEntry((prev) => ({
+                    ...prev,
+                    username: e.target.value,
+                  }))
                 }
                 style={{
                   background: "#071427",
@@ -924,7 +993,10 @@ export default function PasswordsPage() {
                 placeholder=""
                 value={newEntry.category}
                 onChange={(e) =>
-                  setNewEntry((prev) => ({ ...prev, category: e.target.value }))
+                  setNewEntry((prev) => ({
+                    ...prev,
+                    category: e.target.value,
+                  }))
                 }
                 style={{
                   background: "#071427",
@@ -997,6 +1069,92 @@ export default function PasswordsPage() {
                   color: "#EAF2FF",
                 }}
               />
+            </div>
+
+            {/* Attachment */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs" style={{ color: "#9BB0C9" }}>
+                  Attachment
+                </Label>
+                <span className="text-xs" style={{ color: "#6b7280" }}>
+                  Max 10 MB · 1 file per entry
+                </span>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="*/*"
+                className="hidden"
+                onChange={handleFileChange}
+                data-ocid="passwords.add.dropzone"
+              />
+              {attachedFile ? (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                  style={{
+                    background: "rgba(34,211,238,0.06)",
+                    border: "1px solid rgba(34,211,238,0.2)",
+                  }}
+                >
+                  <Paperclip size={13} style={{ color: "#22D3EE" }} />
+                  <span
+                    className="flex-1 text-xs truncate"
+                    style={{ color: "#EAF2FF" }}
+                  >
+                    {attachedFile.name}
+                  </span>
+                  <span className="text-xs" style={{ color: "#9BB0C9" }}>
+                    {formatFileSize(attachedFile.size)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFile}
+                    className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                    style={{ color: "#9BB0C9" }}
+                    aria-label="Remove attachment"
+                    data-ocid="passwords.add.attachment.close_button"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-colors hover:bg-white/5"
+                  style={{
+                    border: "1px dashed #1A3354",
+                    color: "#9BB0C9",
+                  }}
+                  data-ocid="passwords.add.upload_button"
+                >
+                  <Paperclip size={13} />
+                  <span className="text-xs">Attach File</span>
+                </button>
+              )}
+              {/* Upload progress bar */}
+              {uploadProgress !== null && (
+                <div className="mt-2">
+                  <Progress
+                    value={uploadProgress}
+                    className="h-1"
+                    style={
+                      {
+                        background: "rgba(34,211,238,0.1)",
+                        "--progress-foreground": "#22D3EE",
+                      } as React.CSSProperties
+                    }
+                  />
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: "#22D3EE" }}
+                    data-ocid="passwords.add.upload.loading_state"
+                  >
+                    Uploading… {uploadProgress}%
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Custom Fields */}
@@ -1191,7 +1349,10 @@ export default function PasswordsPage() {
               <Button
                 data-ocid="passwords.add.cancel_button"
                 variant="outline"
-                onClick={() => setShowAdd(false)}
+                onClick={() => {
+                  resetAddForm();
+                  setShowAdd(false);
+                }}
                 className="flex-1 rounded-full"
                 style={{
                   borderColor: "#1A3354",

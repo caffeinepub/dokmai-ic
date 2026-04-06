@@ -36,6 +36,7 @@ export interface PasswordEntry {
   category: string;
   totp: string;
   customFields: CustomField[];
+  blob?: ExternalBlob;
 }
 
 export interface PasswordHistoryEntry {
@@ -91,8 +92,23 @@ export function useUpdatePassword() {
       category: string;
       totp: string;
       customFields: CustomField[];
+      existingBlob?: ExternalBlob;
+      file?: File | null;
+      onUploadProgress?: (pct: number) => void;
     }) => {
       if (!actor) throw new Error("Actor not ready");
+      let blob: ExternalBlob | null = null;
+      if (data.file) {
+        const arrayBuffer = await data.file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let externalBlob = ExternalBlob.fromBytes(bytes);
+        if (data.onUploadProgress) {
+          externalBlob = externalBlob.withUploadProgress(data.onUploadProgress);
+        }
+        blob = externalBlob;
+      } else if (data.existingBlob) {
+        blob = data.existingBlob;
+      }
       await (actor as any).updatePasswordEntryInVault(
         data.title,
         data.username,
@@ -103,7 +119,7 @@ export function useUpdatePassword() {
         data.category,
         data.totp,
         data.customFields,
-        null,
+        blob,
         BigInt(Date.now()) * BigInt(1_000_000),
       );
     },
@@ -304,8 +320,20 @@ export function useAddPassword() {
       category: string;
       totp: string;
       customFields: CustomField[];
+      file?: File | null;
+      onUploadProgress?: (pct: number) => void;
     }) => {
       if (!actor) throw new Error("Actor not ready");
+      let blob: ExternalBlob | null = null;
+      if (data.file) {
+        const arrayBuffer = await data.file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let externalBlob = ExternalBlob.fromBytes(bytes);
+        if (data.onUploadProgress) {
+          externalBlob = externalBlob.withUploadProgress(data.onUploadProgress);
+        }
+        blob = externalBlob;
+      }
       await (actor as any).addPasswordEntryToVault(
         data.title,
         data.username,
@@ -316,7 +344,7 @@ export function useAddPassword() {
         data.category,
         data.totp,
         data.customFields,
-        null,
+        blob,
       );
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["passwords"] }),

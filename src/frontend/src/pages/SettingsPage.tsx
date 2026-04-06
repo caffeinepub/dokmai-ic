@@ -24,6 +24,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  FileJson,
   Loader2,
   LogOut,
   Upload,
@@ -46,6 +47,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddPassword,
   usePasswordEntries,
+  useSecureNotes,
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
@@ -56,6 +58,7 @@ export default function SettingsPage() {
   const { data: profile } = useUserProfile();
   const { mutate: updateProfile, isPending: isSaving } = useUpdateUserProfile();
   const { data: passwords } = usePasswordEntries();
+  const { data: notes } = useSecureNotes();
   const { mutateAsync: addPasswordAsync } = useAddPassword();
 
   const principal = identity?.getPrincipal().toText() ?? "";
@@ -63,6 +66,7 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState(profile?.name ?? "");
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [showCsvExport, setShowCsvExport] = useState(false);
+  const [isExportingJson, setIsExportingJson] = useState(false);
 
   const copyPrincipal = async () => {
     await navigator.clipboard.writeText(principal);
@@ -101,6 +105,67 @@ export default function SettingsPage() {
         totp: "",
         customFields: [],
       });
+    }
+  };
+
+  const handleJsonExport = async () => {
+    setIsExportingJson(true);
+    try {
+      const backup = {
+        exportedAt: new Date().toISOString(),
+        version: "2.0.0",
+        app: "Dokmai IC",
+        data: {
+          passwords: (passwords ?? []).map((p) => ({
+            title: p.title,
+            username: p.username,
+            password: p.password,
+            url: p.url,
+            notes: p.notes,
+            email: p.email,
+            category: p.category,
+            totp: p.totp,
+            customFields: (p.customFields ?? []).map((cf) => ({
+              name: cf.name,
+              value: cf.value,
+              fieldType: cf.fieldType,
+            })),
+            attachmentFilename:
+              (p.blob as any)?.filename ??
+              (p.blob as any)?.name ??
+              (p.blob as any)?.blobId ??
+              null,
+          })),
+          notes: (notes ?? []).map((n) => ({
+            title: n.title,
+            content: n.content,
+            attachmentFilename:
+              (n.blob as any)?.filename ??
+              (n.blob as any)?.name ??
+              (n.blob as any)?.blobId ??
+              null,
+          })),
+        },
+        summary: {
+          passwordCount: (passwords ?? []).length,
+          noteCount: (notes ?? []).length,
+        },
+      };
+
+      const json = JSON.stringify(backup, null, 2);
+      const fileBlob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(fileBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dokmai-ic-backup-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast.success("JSON backup downloaded successfully!");
+    } catch (_e) {
+      toast.error(t.error);
+    } finally {
+      setIsExportingJson(false);
     }
   };
 
@@ -228,7 +293,7 @@ export default function SettingsPage() {
         </Select>
       </motion.section>
 
-      {/* Import & Data */}
+      {/* Import & Export */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -269,6 +334,25 @@ export default function SettingsPage() {
           >
             <Download size={14} className="mr-2" />
             Export CSV
+          </Button>
+          <Button
+            data-ocid="settings.json_export.primary_button"
+            onClick={handleJsonExport}
+            disabled={isExportingJson}
+            className="rounded-full text-sm font-medium"
+            style={{
+              background: "rgba(168,85,247,0.1)",
+              border: "1px solid rgba(168,85,247,0.3)",
+              color: "#A855F7",
+            }}
+            variant="outline"
+          >
+            {isExportingJson ? (
+              <Loader2 size={14} className="mr-2 animate-spin" />
+            ) : (
+              <FileJson size={14} className="mr-2" />
+            )}
+            Export JSON
           </Button>
         </div>
 

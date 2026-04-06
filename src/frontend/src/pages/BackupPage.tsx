@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import {
+  AlertTriangle,
   Download,
   HardDriveDownload,
   Loader2,
-  ShieldCheck,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
@@ -22,18 +22,37 @@ export default function BackupPage() {
     try {
       const backup = {
         exportedAt: new Date().toISOString(),
-        version: "1.0.0",
+        version: "2.0.0",
         app: "Dokmai IC",
         data: {
           passwords: passwords.map((p) => ({
             title: p.title,
             username: p.username,
+            password: p.password,
             url: p.url,
             notes: p.notes,
+            email: p.email,
+            category: p.category,
+            totp: p.totp,
+            customFields: (p.customFields ?? []).map((cf) => ({
+              name: cf.name,
+              value: cf.value,
+              fieldType: cf.fieldType,
+            })),
+            attachmentFilename:
+              (p.blob as any)?.filename ??
+              (p.blob as any)?.name ??
+              (p.blob as any)?.blobId ??
+              null,
           })),
           notes: notes.map((n) => ({
             title: n.title,
             content: n.content,
+            attachmentFilename:
+              (n.blob as any)?.filename ??
+              (n.blob as any)?.name ??
+              (n.blob as any)?.blobId ??
+              null,
           })),
         },
         summary: {
@@ -43,8 +62,8 @@ export default function BackupPage() {
       };
 
       const json = JSON.stringify(backup, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
+      const fileBlob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(fileBlob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `dokmai-ic-backup-${new Date().toISOString().split("T")[0]}.json`;
@@ -66,7 +85,7 @@ export default function BackupPage() {
           {t.backupTitle}
         </h1>
         <p className="text-sm" style={{ color: "#9BB0C9" }}>
-          Export your vault data for safekeeping
+          Full vault backup including all passwords and notes
         </p>
       </div>
 
@@ -119,23 +138,22 @@ export default function BackupPage() {
           ))}
         </div>
 
-        {/* Security notice */}
+        {/* Security warning */}
         <div
           className="flex items-start gap-3 p-3 rounded-xl mb-5"
           style={{
             background: "rgba(234,179,8,0.06)",
-            border: "1px solid rgba(234,179,8,0.15)",
+            border: "1px solid rgba(234,179,8,0.25)",
           }}
         >
-          <ShieldCheck
+          <AlertTriangle
             size={16}
             className="flex-shrink-0 mt-0.5"
-            style={{ color: "#eab308" }}
+            style={{ color: "#f59e0b" }}
           />
-          <p className="text-xs" style={{ color: "#9BB0C9" }}>
-            Passwords are not included in the export for security. Copy
-            passwords individually from the Password Manager. The exported file
-            contains metadata, notes, and vault structure.
+          <p className="text-xs" style={{ color: "#d4a947" }}>
+            This file contains sensitive data including passwords. Store it
+            securely and do not share it.
           </p>
         </div>
 
