@@ -37,6 +37,11 @@ export interface PasswordEntry {
   customFields: CustomField[];
 }
 
+export interface PasswordHistoryEntry {
+  password: string;
+  changedAt: bigint;
+}
+
 // Helper to unwrap Motoko optional ([] | [T]) to T | null
 function unwrapOpt<T>(opt: [] | [T]): T | null {
   if (!opt || opt.length === 0) return null;
@@ -54,6 +59,59 @@ export function usePasswordEntries() {
       >;
     },
     enabled: !!actor && !isFetching,
+  });
+}
+
+export function usePasswordHistory(title: string, enabled: boolean) {
+  const { actor, isFetching } = useActor();
+  return useQuery<PasswordHistoryEntry[]>({
+    queryKey: ["passwordHistory", title],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getPasswordHistory(title) as Promise<
+        PasswordHistoryEntry[]
+      >;
+    },
+    enabled: !!actor && !isFetching && enabled,
+  });
+}
+
+export function useUpdatePassword() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      title: string;
+      username: string;
+      password: string;
+      url: string;
+      notes: string;
+      email: string;
+      category: string;
+      totp: string;
+      customFields: CustomField[];
+    }) => {
+      if (!actor) throw new Error("Actor not ready");
+      await (actor as any).updatePasswordEntryInVault(
+        data.title,
+        data.username,
+        data.password,
+        data.url,
+        data.notes,
+        data.email,
+        data.category,
+        data.totp,
+        data.customFields,
+        null,
+        BigInt(Date.now()) * BigInt(1_000_000),
+      );
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["passwords"] });
+      qc.invalidateQueries({
+        queryKey: ["passwordHistory", variables.title],
+      });
+    },
   });
 }
 

@@ -18,6 +18,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Clock,
   Copy,
   ExternalLink,
   Eye,
@@ -26,6 +27,7 @@ import {
   Loader2,
   Mail,
   Plus,
+  RotateCcw,
   Search,
   Shield,
   Tag,
@@ -41,7 +43,10 @@ import {
   useAddPassword,
   useDeletePassword,
   usePasswordEntries,
+  usePasswordHistory,
+  useUpdatePassword,
 } from "../hooks/useQueries";
+import type { PasswordEntry } from "../hooks/useQueries";
 import { useTotpCode } from "../hooks/useTotpCode";
 
 interface CustomField {
@@ -137,26 +142,201 @@ function TotpDisplay({ secret }: { secret: string }) {
   );
 }
 
+// PasswordHistoryPanel: inline history of previous passwords for an entry
+function PasswordHistoryPanel({
+  title,
+  currentEntry,
+  onRestored,
+}: {
+  title: string;
+  currentEntry: PasswordEntry;
+  onRestored: () => void;
+}) {
+  const { data: history = [], isLoading } = usePasswordHistory(title, true);
+  const { mutate: updatePassword, isPending: isRestoring } =
+    useUpdatePassword();
+  const [shownEntries, setShownEntries] = useState<Set<string>>(new Set());
+
+  const toggleShow = (key: string) => {
+    setShownEntries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleCopy = async (password: string) => {
+    await navigator.clipboard.writeText(password);
+    toast.success("Password copied from history");
+  };
+
+  const handleRestore = (password: string) => {
+    updatePassword(
+      {
+        title: currentEntry.title,
+        username: currentEntry.username,
+        password,
+        url: currentEntry.url,
+        notes: currentEntry.notes,
+        email: currentEntry.email,
+        category: currentEntry.category,
+        totp: currentEntry.totp,
+        customFields: currentEntry.customFields,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Password restored!");
+          onRestored();
+        },
+        onError: (e) => toast.error(`Restore failed: ${e.message}`),
+      },
+    );
+  };
+
+  return (
+    <div
+      className="mt-3 rounded-lg overflow-hidden"
+      style={{
+        background: "#071427",
+        border: "1px solid #1A3354",
+      }}
+    >
+      {/* Panel header */}
+      <div
+        className="flex items-center gap-2 px-3 py-2"
+        style={{ borderBottom: "1px solid #1A3354" }}
+      >
+        <Clock size={12} style={{ color: "#22D3EE" }} />
+        <span className="text-xs font-semibold" style={{ color: "#22D3EE" }}>
+          Password History
+        </span>
+        <span className="ml-auto text-xs" style={{ color: "#9BB0C9" }}>
+          Up to 10 previous versions
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="px-3 py-2">
+        {isLoading ? (
+          <div
+            className="flex items-center justify-center gap-2 py-4"
+            data-ocid="passwords.history.loading_state"
+          >
+            <Loader2
+              size={14}
+              className="animate-spin"
+              style={{ color: "#22D3EE" }}
+            />
+            <span className="text-xs" style={{ color: "#9BB0C9" }}>
+              Loading history...
+            </span>
+          </div>
+        ) : history.length === 0 ? (
+          <div
+            className="flex items-center justify-center py-4"
+            data-ocid="passwords.history.empty_state"
+          >
+            <p className="text-xs" style={{ color: "#9BB0C9" }}>
+              No history yet. History is recorded when you update this password.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {history.map((entry, idx) => {
+              const histKey = entry.changedAt.toString();
+              const isShown = shownEntries.has(histKey);
+              const dateStr = new Date(
+                Number(entry.changedAt / BigInt(1_000_000)),
+              ).toLocaleString();
+              const maskedPwd = "•".repeat(Math.min(entry.password.length, 20));
+              return (
+                <div
+                  key={histKey}
+                  data-ocid={`passwords.history.item.${idx + 1}`}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg"
+                  style={{
+                    background: "rgba(255,255,255,0.02)",
+                    border: "1px solid rgba(26,51,84,0.6)",
+                  }}
+                >
+                  {/* Password value */}
+                  <span
+                    className="flex-1 font-mono text-xs truncate"
+                    style={{ color: isShown ? "#22D3EE" : "#9BB0C9" }}
+                  >
+                    {isShown ? entry.password : maskedPwd}
+                  </span>
+
+                  {/* Date */}
+                  <span
+                    className="text-xs shrink-0 tabular-nums"
+                    style={{ color: "#9BB0C9", fontSize: "0.65rem" }}
+                  >
+                    {dateStr}
+                  </span>
+
+                  {/* Toggle show/hide */}
+                  <button
+                    type="button"
+                    onClick={() => toggleShow(histKey)}
+                    className="p-1 rounded hover:bg-white/5 transition-colors shrink-0"
+                    style={{ color: "#9BB0C9" }}
+                    aria-label={isShown ? "Hide password" : "Show password"}
+                    data-ocid={`passwords.history.toggle.${idx + 1}`}
+                  >
+                    {isShown ? <EyeOff size={12} /> : <Eye size={12} />}
+                  </button>
+
+                  {/* Copy */}
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(entry.password)}
+                    className="p-1 rounded hover:bg-white/5 transition-colors shrink-0"
+                    style={{ color: "#9BB0C9" }}
+                    aria-label="Copy historical password"
+                    data-ocid={`passwords.history.copy.${idx + 1}`}
+                  >
+                    <Copy size={12} />
+                  </button>
+
+                  {/* Restore */}
+                  <button
+                    type="button"
+                    onClick={() => handleRestore(entry.password)}
+                    disabled={isRestoring}
+                    className="p-1 rounded hover:bg-cyan-500/10 transition-colors shrink-0 disabled:opacity-40"
+                    style={{ color: "#22D3EE" }}
+                    aria-label="Restore this password"
+                    data-ocid={`passwords.history.restore.${idx + 1}`}
+                  >
+                    {isRestoring ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <RotateCcw size={12} />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PasswordCard({
   entry,
   onDelete,
 }: {
-  entry: {
-    title: string;
-    username: string;
-    password: string;
-    url: string;
-    notes: string;
-    email: string;
-    category: string;
-    totp: string;
-    customFields: CustomField[];
-  };
+  entry: PasswordEntry;
   onDelete: () => void;
 }) {
   const { t } = useLanguage();
   const [showPwd, setShowPwd] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   // Map from stable key (name+index) to hidden state for password fields
   const [shownCustomFields, setShownCustomFields] = useState<Set<string>>(
     new Set(),
@@ -256,6 +436,17 @@ function PasswordCard({
           >
             <Copy size={14} />
           </button>
+          {/* History toggle */}
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            style={{ color: showHistory ? "#22D3EE" : "#9BB0C9" }}
+            aria-label="Toggle password history"
+            data-ocid="passwords.history.toggle"
+          >
+            <Clock size={14} />
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -264,10 +455,9 @@ function PasswordCard({
                   toast.success("Password deleted");
                   onDelete();
                 },
-                onError: (e) => toast.error(e.message),
+                onError: (e) => toast.error(`${t.error}: ${e.message}`),
               });
             }}
-            disabled={isDeleting}
             className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
             style={{ color: "#9BB0C9" }}
             aria-label={t.pwdDelete}
@@ -365,6 +555,25 @@ function PasswordCard({
           })}
         </div>
       )}
+
+      {/* Password History Panel */}
+      <AnimatePresence>
+        {showHistory && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <PasswordHistoryPanel
+              title={entry.title}
+              currentEntry={entry}
+              onRestored={() => setShowHistory(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -611,7 +820,7 @@ export default function PasswordsPage() {
               <Input
                 id="pwd-add-title"
                 data-ocid="passwords.add.title.input"
-                placeholder="e.g. GitHub"
+                placeholder=""
                 value={newEntry.title}
                 onChange={(e) =>
                   setNewEntry((prev) => ({ ...prev, title: e.target.value }))
@@ -636,7 +845,7 @@ export default function PasswordsPage() {
               <Input
                 id="pwd-add-username"
                 data-ocid="passwords.add.username.input"
-                placeholder="user@example.com"
+                placeholder=""
                 value={newEntry.username}
                 onChange={(e) =>
                   setNewEntry((prev) => ({ ...prev, username: e.target.value }))
@@ -661,7 +870,7 @@ export default function PasswordsPage() {
               <Input
                 id="pwd-add-email"
                 data-ocid="passwords.add.email.input"
-                placeholder="email@example.com"
+                placeholder=""
                 type="email"
                 value={newEntry.email}
                 onChange={(e) =>
@@ -687,7 +896,7 @@ export default function PasswordsPage() {
               <Input
                 id="pwd-add-url"
                 data-ocid="passwords.add.url.input"
-                placeholder="https://github.com"
+                placeholder=""
                 value={newEntry.url}
                 onChange={(e) =>
                   setNewEntry((prev) => ({ ...prev, url: e.target.value }))
@@ -712,7 +921,7 @@ export default function PasswordsPage() {
               <Input
                 id="pwd-add-category"
                 data-ocid="passwords.add.category.input"
-                placeholder="e.g. Social, Work, Finance"
+                placeholder=""
                 value={newEntry.category}
                 onChange={(e) =>
                   setNewEntry((prev) => ({ ...prev, category: e.target.value }))
@@ -739,7 +948,7 @@ export default function PasswordsPage() {
                   id="pwd-add-totp"
                   data-ocid="passwords.add.totp.input"
                   type={showTotp ? "text" : "password"}
-                  placeholder="TOTP secret key"
+                  placeholder=""
                   value={newEntry.totp}
                   onChange={(e) =>
                     setNewEntry((prev) => ({ ...prev, totp: e.target.value }))
@@ -775,7 +984,7 @@ export default function PasswordsPage() {
               <Textarea
                 id="pwd-add-notes"
                 data-ocid="passwords.add.notes.textarea"
-                placeholder="Optional notes"
+                placeholder=""
                 value={newEntry.notes}
                 onChange={(e) =>
                   setNewEntry((prev) => ({ ...prev, notes: e.target.value }))
@@ -814,7 +1023,7 @@ export default function PasswordsPage() {
                   <div key={cf._id} className="flex items-center gap-2">
                     {/* Field name */}
                     <Input
-                      placeholder="Field name"
+                      placeholder=""
                       value={cf.name}
                       onChange={(e) =>
                         updateCustomField(cf._id, "name", e.target.value)
@@ -831,7 +1040,7 @@ export default function PasswordsPage() {
                     {/* Field value */}
                     <div className="relative flex-1">
                       <Input
-                        placeholder="Value"
+                        placeholder=""
                         type={
                           cf.fieldType === "password" &&
                           !visibleCustomFields.has(cf._id)
@@ -950,7 +1159,7 @@ export default function PasswordsPage() {
                   id="pwd-add-password"
                   data-ocid="passwords.add.password.input"
                   type={showNewPwd ? "text" : "password"}
-                  placeholder="Enter or generate password"
+                  placeholder=""
                   value={newEntry.password}
                   onChange={(e) =>
                     setNewEntry((prev) => ({

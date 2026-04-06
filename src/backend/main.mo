@@ -173,6 +173,12 @@ actor {
     };
   };
 
+
+  type PasswordHistoryEntry = {
+    password : Text;
+    changedAt : Int;
+  };
+
   module Feedback {
     public func compare(feedback1 : Feedback, feedback2 : Feedback) : Order.Order {
       Int.compare(feedback1.timestamp, feedback2.timestamp);
@@ -207,6 +213,9 @@ actor {
   let feedbackEntries = Map.empty<Principal, [FeedbackLegacy]>();
   let blockedUsers = Set.empty<Principal>();
   let loginActivityLog = Map.empty<Principal, LoginActivity>();
+  // Password history: composite key "principalText|title" -> list of old passwords (max 10)
+  let passwordHistory = Map.empty<Text, [PasswordHistoryEntry]>();
+
   var feedbackIdCounter : Nat = 0;
 
   // V2 stable store — kept with original type to avoid compatibility errors
@@ -388,11 +397,92 @@ actor {
           Runtime.trap("Password entry for title " # title # " does not exist.");
         };
         passwordVaultsV2.add(caller, { entries = filteredEntries; notes = vault.notes; profile = vault.profile });
+        // Clean up history for deleted entry
+        passwordHistory.remove(historyKey(caller, title));
       };
       case (null) {
         Runtime.trap("Password entry for title " # title # " does not exist.");
       };
     };
+  };
+
+  // Helper: record old password in history (keeps max 10)
+  func historyKey(caller : Principal, title : Text) : Text {
+    caller.toText() # "|" # title
+  };
+
+  func recordPasswordHistory(caller : Principal, title : Text, oldPassword : Text, timestamp : Int) {
+    let entry : PasswordHistoryEntry = { password = oldPassword; changedAt = timestamp };
+    let key = historyKey(caller, title);
+    let existing : [PasswordHistoryEntry] = switch (passwordHistory.get(key)) {
+      case (?arr) { arr };
+      case (null) { [] };
+    };
+    // Prepend and keep max 10
+    let updated = [entry].concat(existing);
+    let trimmed = if (updated.size() > 10) {
+      updated.vals().take(10).toArray()
+    } else { updated };
+    passwordHistory.add(key, trimmed);
+  };
+
+  // Update an existing password entry (records old password in history)
+  public shared ({ caller }) func updatePasswordEntryInVault(
+    title : Text,
+    username : Username,
+    password : StrongPassword,
+    url : Text,
+    notes : Text,
+    email : Text,
+    category : Text,
+    totp : Text,
+    customFields : [CustomField],
+    blob : ?Storage.ExternalBlob,
+    timestamp : Int
+  ) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can update password entries");
+    };
+    ensurePasswordVaults();
+    switch (passwordVaultsV2.get(caller)) {
+      case (?vault) {
+        switch (vault.entries.find(func(e : PasswordEntry) : Bool { e.title == title })) {
+          case (?oldEntry) {
+            // Record old password in history before overwriting
+            if (oldEntry.password != password) {
+              recordPasswordHistory(caller, title, oldEntry.password, timestamp);
+            };
+            let updated = vault.entries.map(func(e : PasswordEntry) : PasswordEntry {
+              if (e.title == title) { { title; username; password; url; notes; email; category; totp; customFields; blob } }
+              else { e }
+            });
+            passwordVaultsV2.add(caller, { entries = updated; notes = vault.notes; profile = vault.profile });
+          };
+          case (null) { Runtime.trap("Password entry for title " # title # " does not exist.") };
+        };
+      };
+      case (null) { Runtime.trap("Password vault not found") };
+    };
+  };
+
+  // User: get password history for a specific entry (most recent first)
+  public query ({ caller }) func getPasswordHistory(title : Text) : async [PasswordHistoryEntry] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view their password history");
+    };
+    let key = historyKey(caller, title);
+    switch (passwordHistory.get(key)) {
+      case (?entries) { entries };
+      case (null) { [] };
+    };
+  };
+
+  // User: clear password history for a specific entry
+  public shared ({ caller }) func clearPasswordHistory(title : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can clear their password history");
+    };
+    passwordHistory.remove(historyKey(caller, title));
   };
 
   public shared ({ caller }) func addSecureNoteToVault(title : Text, content : Text, blob : ?Storage.ExternalBlob) : async () {
