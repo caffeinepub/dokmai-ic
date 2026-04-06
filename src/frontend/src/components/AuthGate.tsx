@@ -1,7 +1,24 @@
 import { Toaster } from "@/components/ui/sonner";
+import { useEffect, useRef } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { useRecordLoginActivity } from "../hooks/useQueries";
 import LoginPage from "../pages/LoginPage";
 import AppLayout from "./layout/AppLayout";
+
+function LoginActivityRecorder() {
+  const recordLogin = useRecordLoginActivity();
+  const hasRecorded = useRef(false);
+  const mutate = recordLogin.mutate;
+
+  useEffect(() => {
+    if (!hasRecorded.current) {
+      hasRecorded.current = true;
+      mutate();
+    }
+  }, [mutate]);
+
+  return null;
+}
 
 export default function AuthGate() {
   const { identity, isInitializing } = useInternetIdentity();
@@ -36,6 +53,7 @@ export default function AuthGate() {
 
   return (
     <>
+      <LoginActivityRecorder />
       <AppLayout />
       <Toaster theme="dark" />
     </>
