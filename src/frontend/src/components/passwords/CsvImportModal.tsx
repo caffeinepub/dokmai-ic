@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -334,14 +333,14 @@ export function CsvImportModal({
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent
         data-ocid="csv_import.dialog"
-        className="max-w-3xl w-full p-0 overflow-hidden"
+        className="max-w-3xl w-full p-0 overflow-hidden flex flex-col max-h-[90vh]"
         style={{
           background: "#0D1F3A",
           border: "1px solid rgba(34,211,238,0.2)",
           color: "#EAF2FF",
         }}
       >
-        <DialogHeader className="p-6 pb-0">
+        <DialogHeader className="p-6 pb-0 flex-shrink-0">
           <DialogTitle
             style={{ color: "#EAF2FF" }}
             className="flex items-center gap-2"
@@ -354,7 +353,7 @@ export function CsvImportModal({
           </p>
         </DialogHeader>
 
-        <div className="p-6 pt-4">
+        <div className="p-6 pt-4 overflow-y-auto flex-1">
           {/* Step 1: Upload */}
           {step === "upload" && (
             <div className="flex flex-col gap-4">
@@ -490,11 +489,11 @@ export function CsvImportModal({
                 )}
               </div>
 
-              <ScrollArea
-                className="rounded-lg border"
-                style={{ borderColor: "#1A3354", maxHeight: "380px" }}
+              <div
+                className="rounded-lg border overflow-auto max-h-[45vh]"
+                style={{ borderColor: "#1A3354" }}
               >
-                <Table>
+                <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow
                       style={{
@@ -647,7 +646,7 @@ export function CsvImportModal({
                     ))}
                   </TableBody>
                 </Table>
-              </ScrollArea>
+              </div>
 
               <div className="flex justify-between gap-2">
                 <Button
