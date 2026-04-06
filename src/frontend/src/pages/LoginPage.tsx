@@ -10,6 +10,7 @@ import { FileText, Globe, Loader2, Lock, Shield } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import dokmaiLogo from "/assets/generated/dokmai-logo-v2-transparent.dim_512x512.png";
 import { CosmicNetworkGraphic } from "../components/CosmicNetworkGraphic";
 import {
   LANGUAGE_OPTIONS,
@@ -105,9 +106,9 @@ function LoginCard({
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
           <img
-            src="/assets/generated/dokmai-logo-transparent.dim_120x120.png"
+            src={dokmaiLogo}
             alt="Dokmai IC Logo"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         </div>
         <div>
