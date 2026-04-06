@@ -4,6 +4,7 @@ import {
   Bell,
   ChevronDown,
   LogOut,
+  Mail,
   Search,
   ShieldCheck,
   User,
@@ -13,6 +14,8 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { useIsAdmin, useUserProfile } from "../../hooks/useQueries";
 
+const EMAIL_STORAGE_KEY = "dokmai-user-email";
+
 export default function Header() {
   const { t } = useLanguage();
   const { identity, clear } = useInternetIdentity();
@@ -21,6 +24,21 @@ export default function Header() {
   const [searchVal, setSearchVal] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [userEmail, setUserEmail] = useState("");
+
+  // Load email from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(EMAIL_STORAGE_KEY) ?? "";
+    setUserEmail(stored);
+  }, []);
+
+  // Re-read email when dropdown opens (in case user just saved it)
+  useEffect(() => {
+    if (dropdownOpen) {
+      const stored = localStorage.getItem(EMAIL_STORAGE_KEY) ?? "";
+      setUserEmail(stored);
+    }
+  }, [dropdownOpen]);
 
   const principalShort = identity?.getPrincipal().toText().slice(0, 8) ?? "";
   const displayName = profile?.name || principalShort || "User";
@@ -164,12 +182,23 @@ export default function Header() {
                     >
                       {displayName}
                     </p>
-                    <p
-                      className="text-xs truncate"
-                      style={{ color: "#9BB0C9" }}
-                    >
-                      {principalFull || "—"}
-                    </p>
+                    {/* Show email if set, otherwise show principal */}
+                    {userEmail ? (
+                      <p
+                        className="text-xs truncate flex items-center gap-1"
+                        style={{ color: "#22D3EE" }}
+                      >
+                        <Mail size={10} />
+                        {userEmail}
+                      </p>
+                    ) : (
+                      <p
+                        className="text-xs truncate"
+                        style={{ color: "#9BB0C9" }}
+                      >
+                        {principalFull || "—"}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
