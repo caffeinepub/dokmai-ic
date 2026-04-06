@@ -1,10 +1,14 @@
 import type { Principal } from "@icp-sdk/core/principal";
 import {
+  Activity,
   AlertTriangle,
   Ban,
   Check,
   CheckCheck,
   Copy,
+  FileText,
+  Inbox,
+  KeyRound,
   Loader2,
   MessageSquare,
   Reply,
@@ -17,7 +21,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { UserWithPrincipal } from "../backend.d";
+import type { LoginActivity, UserWithPrincipal } from "../backend.d";
 import { Button } from "../components/ui/button";
 import {
   Dialog,
@@ -38,8 +42,10 @@ import {
   useAllUsersWithPrincipals,
   useBlockUser,
   useIsAdmin,
+  useLoginActivityLog,
   useMarkFeedbackAsRead,
   useMarkFeedbackAsResolved,
+  useSystemStats,
   useUnblockUser,
 } from "../hooks/useQueries";
 import type { FeedbackWithPrincipal } from "../hooks/useQueries";
@@ -1056,6 +1062,342 @@ function FeedbackSection() {
   );
 }
 
+const MONITORING_STAT_CONFIGS = [
+  {
+    key: "totalUsers" as keyof import("../backend.d").SystemStats,
+    label: "Total Users",
+    icon: Users,
+    color: "#22D3EE",
+  },
+  {
+    key: "blockedUsers" as keyof import("../backend.d").SystemStats,
+    label: "Blocked Users",
+    icon: Ban,
+    color: "#ef4444",
+  },
+  {
+    key: "unreadFeedback" as keyof import("../backend.d").SystemStats,
+    label: "Unread Feedback",
+    icon: MessageSquare,
+    color: "#f59e0b",
+  },
+  {
+    key: "totalPasswords" as keyof import("../backend.d").SystemStats,
+    label: "Total Passwords",
+    icon: KeyRound,
+    color: "#A855F7",
+  },
+  {
+    key: "totalNotes" as keyof import("../backend.d").SystemStats,
+    label: "Total Notes",
+    icon: FileText,
+    color: "#22c55e",
+  },
+  {
+    key: "totalFeedback" as keyof import("../backend.d").SystemStats,
+    label: "Total Feedback",
+    icon: Inbox,
+    color: "#64748b",
+  },
+];
+
+function ActivityRow({
+  entry,
+  index,
+}: {
+  entry: LoginActivity;
+  index: number;
+}) {
+  const [copied, setCopied] = useState(false);
+  const principalStr = entry.principal.toString();
+  const truncated = truncatePrincipal(principalStr);
+  const lastLogin = new Date(
+    Number(entry.lastLoginTimestamp) / 1_000_000,
+  ).toLocaleString();
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(principalStr);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // silently ignore clipboard errors
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.25 }}
+      className="flex flex-col sm:flex-row sm:items-center gap-2 py-2.5 px-3 rounded-lg"
+      data-ocid={`admin.monitoring.activity_row.${index + 1}`}
+      style={{
+        background: "rgba(255,255,255,0.025)",
+        border: "1px solid rgba(26,51,84,0.8)",
+      }}
+    >
+      {/* Principal + copy */}
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "rgba(34,211,238,0.1)",
+            border: "1px solid rgba(34,211,238,0.2)",
+          }}
+        >
+          <Activity size={12} style={{ color: "#22D3EE" }} />
+        </div>
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-xs font-mono"
+              style={{ color: "#22D3EE" }}
+              title={principalStr}
+            >
+              {truncated}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex-shrink-0 p-0.5 rounded transition-colors hover:bg-white/5"
+              title="Copy Principal ID"
+              style={{ color: copied ? "#22c55e" : "#4a6a8a" }}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {copied ? (
+                  <motion.span
+                    key="check"
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.7, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Check size={11} />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="copy"
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.7, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Copy size={11} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
+          <span className="text-xs" style={{ color: "#4a6a8a" }}>
+            Last login: {lastLogin}
+          </span>
+        </div>
+      </div>
+
+      {/* Login count badge */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <span
+          className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
+          style={{
+            background: "rgba(168,85,247,0.12)",
+            color: "#A855F7",
+            border: "1px solid rgba(168,85,247,0.25)",
+          }}
+        >
+          {String(entry.loginCount)} logins
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+function SystemMonitoringSection() {
+  const { data: stats, isLoading: statsLoading } = useSystemStats();
+  const { data: activityLog = [], isLoading: activityLoading } =
+    useLoginActivityLog();
+
+  // Sort activity by last login timestamp descending (most recent first)
+  const sortedActivity = [...activityLog].sort(
+    (a, b) => Number(b.lastLoginTimestamp) - Number(a.lastLoginTimestamp),
+  );
+
+  return (
+    <div
+      className="card-gradient-border p-5 flex flex-col gap-6"
+      data-ocid="admin.monitoring.panel"
+    >
+      {/* Section header */}
+      <div className="flex items-center gap-2">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "rgba(34,211,238,0.12)",
+            border: "1px solid rgba(34,211,238,0.2)",
+          }}
+        >
+          <Activity size={14} style={{ color: "#22D3EE" }} />
+        </div>
+        <h3 className="font-semibold" style={{ color: "#EAF2FF" }}>
+          System Monitoring
+        </h3>
+        <span
+          className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium"
+          style={{
+            background: "rgba(34,211,238,0.08)",
+            color: "#22D3EE",
+            border: "1px solid rgba(34,211,238,0.18)",
+          }}
+        >
+          Overview
+        </span>
+      </div>
+
+      {/* Part A: 6 stat overview cards */}
+      {statsLoading ? (
+        <div
+          className="flex items-center gap-2 py-4"
+          data-ocid="admin.monitoring.loading_state"
+        >
+          <Loader2
+            className="animate-spin"
+            size={16}
+            style={{ color: "#22D3EE" }}
+          />
+          <span className="text-sm" style={{ color: "#9BB0C9" }}>
+            Loading system stats...
+          </span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {MONITORING_STAT_CONFIGS.map((cfg, i) => {
+            const Icon = cfg.icon;
+            const value = stats ? String(stats[cfg.key]) : "0";
+            return (
+              <motion.div
+                key={cfg.key}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.07, duration: 0.3 }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                data-ocid={`admin.monitoring.overview_card.${i + 1}`}
+                style={{
+                  background: `${cfg.color}08`,
+                  border: `1px solid ${cfg.color}20`,
+                }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: `${cfg.color}14`,
+                    border: `1px solid ${cfg.color}28`,
+                  }}
+                >
+                  <Icon size={16} style={{ color: cfg.color }} />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span
+                    className="text-xl font-bold leading-tight"
+                    style={{ color: cfg.color }}
+                  >
+                    {value}
+                  </span>
+                  <span
+                    className="text-xs leading-tight truncate"
+                    style={{ color: "#9BB0C9" }}
+                  >
+                    {cfg.label}
+                  </span>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Divider */}
+      <div
+        className="w-full h-px"
+        style={{ background: "rgba(26,51,84,0.8)" }}
+      />
+
+      {/* Part B: Login Activity Log */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+            style={{
+              background: "rgba(168,85,247,0.12)",
+              border: "1px solid rgba(168,85,247,0.2)",
+            }}
+          >
+            <Activity size={12} style={{ color: "#A855F7" }} />
+          </div>
+          <h4 className="text-sm font-semibold" style={{ color: "#EAF2FF" }}>
+            Login Activity
+          </h4>
+          {activityLog.length > 0 && (
+            <span
+              className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium"
+              style={{
+                background: "rgba(168,85,247,0.1)",
+                color: "#A855F7",
+                border: "1px solid rgba(168,85,247,0.2)",
+              }}
+            >
+              {activityLog.length}
+            </span>
+          )}
+        </div>
+
+        {activityLoading ? (
+          <div
+            className="flex items-center gap-2 py-4"
+            data-ocid="admin.monitoring.loading_state"
+          >
+            <Loader2
+              className="animate-spin"
+              size={14}
+              style={{ color: "#A855F7" }}
+            />
+            <span className="text-sm" style={{ color: "#9BB0C9" }}>
+              Loading activity log...
+            </span>
+          </div>
+        ) : sortedActivity.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-8 gap-3"
+            data-ocid="admin.monitoring.empty_state"
+          >
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{
+                background: "rgba(168,85,247,0.06)",
+                border: "1px solid rgba(168,85,247,0.12)",
+              }}
+            >
+              <Activity size={18} style={{ color: "#9BB0C9" }} />
+            </div>
+            <p className="text-sm" style={{ color: "#9BB0C9" }}>
+              No login activity recorded yet.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {sortedActivity.map((entry, i) => (
+              <ActivityRow
+                key={entry.principal.toString()}
+                entry={entry}
+                index={i}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { t } = useLanguage();
   const { data: isAdmin, isLoading: checkingAdmin } = useIsAdmin();
@@ -1160,6 +1502,9 @@ export default function AdminPage() {
           );
         })}
       </div>
+
+      {/* System Monitoring */}
+      <SystemMonitoringSection />
 
       {/* User Management */}
       <UserManagementSection />

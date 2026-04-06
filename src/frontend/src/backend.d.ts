@@ -53,6 +53,19 @@ export interface UserWithPrincipal {
     passwordCount: bigint;
     noteCount: bigint;
 }
+export interface SystemStats {
+    totalUsers: bigint;
+    blockedUsers: bigint;
+    totalPasswords: bigint;
+    totalNotes: bigint;
+    totalFeedback: bigint;
+    unreadFeedback: bigint;
+}
+export interface LoginActivity {
+    principal: Principal;
+    lastLoginTimestamp: bigint;
+    loginCount: bigint;
+}
 export interface UserStats {
     passwordCount: bigint;
     noteCount: bigint;
@@ -102,6 +115,9 @@ export interface backendInterface {
     adminDeleteFeedback(user: Principal, feedbackId: bigint): Promise<void>;
     adminReplyFeedback(user: Principal, feedbackId: bigint, reply: string, replyTimestamp: bigint): Promise<void>;
     getUserFeedbackWithReplies(): Promise<Array<FeedbackForUser>>;
+    getSystemStats(): Promise<SystemStats>;
+    recordLoginActivity(timestamp: bigint): Promise<void>;
+    getLoginActivityLog(): Promise<Array<LoginActivity>>;
 }
 export interface FeedbackWithPrincipalRaw {
     principal: Principal;

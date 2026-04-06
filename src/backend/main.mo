@@ -124,6 +124,28 @@ actor {
     noteCount : Nat;
   };
 
+  type SystemStats = {
+    totalUsers : Nat;
+    blockedUsers : Nat;
+    totalPasswords : Nat;
+    totalNotes : Nat;
+    totalFeedback : Nat;
+    unreadFeedback : Nat;
+  };
+
+  type LoginActivity = {
+    principal : Principal;
+    lastLoginTimestamp : Int;
+    loginCount : Nat;
+  };
+
+  module LoginActivity {
+    public func compare(a : LoginActivity, b : LoginActivity) : Order.Order {
+      Int.compare(b.lastLoginTimestamp, a.lastLoginTimestamp);
+    };
+  };
+
+
   module Feedback {
     public func compare(feedback1 : Feedback, feedback2 : Feedback) : Order.Order {
       Int.compare(feedback1.timestamp, feedback2.timestamp);
@@ -150,6 +172,7 @@ actor {
   // feedbackEntries uses the legacy type to preserve stable compatibility
   let feedbackEntries = Map.empty<Principal, [FeedbackLegacy]>();
   let blockedUsers = Set.empty<Principal>();
+  let loginActivityLog = Map.empty<Principal, LoginActivity>();
   var feedbackIdCounter : Nat = 0;
 
   // V2 stable store — kept with original type to avoid compatibility errors
@@ -640,4 +663,59 @@ actor {
     };
     userIdSet.size();
   };
+
+  // Admin: get system-wide stats
+  public query ({ caller }) func getSystemStats() : async SystemStats {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view system stats");
+    };
+    var totalPasswords : Nat = 0;
+    var totalNotes : Nat = 0;
+    for ((_, vault) in passwordVaults.entries()) {
+      totalPasswords += vault.entries.size();
+      totalNotes += vault.notes.size();
+    };
+    var totalFeedback : Nat = 0;
+    var unreadFeedback : Nat = 0;
+    for ((_, feedbacks) in feedbackEntriesV3.entries()) {
+      for (fb in feedbacks.vals()) {
+        totalFeedback += 1;
+        if ("unread" == (switch (fb.status) { case (#unread) "unread"; case (_) "other" })) {
+          unreadFeedback += 1;
+        };
+      };
+    };
+    {
+      totalUsers = userIdSet.size();
+      blockedUsers = blockedUsers.size();
+      totalPasswords;
+      totalNotes;
+      totalFeedback;
+      unreadFeedback;
+    };
+  };
+
+  // User: record login activity (called on login)
+  public shared ({ caller }) func recordLoginActivity(timestamp : Int) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      return;
+    };
+    switch (loginActivityLog.get(caller)) {
+      case (?existing) {
+        loginActivityLog.add(caller, { principal = caller; lastLoginTimestamp = timestamp; loginCount = existing.loginCount + 1 });
+      };
+      case (null) {
+        loginActivityLog.add(caller, { principal = caller; lastLoginTimestamp = timestamp; loginCount = 1 });
+      };
+    };
+  };
+
+  // Admin: get login activity log sorted by most recent first
+  public query ({ caller }) func getLoginActivityLog() : async [LoginActivity] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view login activity");
+    };
+    loginActivityLog.values().toArray().sort();
+  };
+
 };

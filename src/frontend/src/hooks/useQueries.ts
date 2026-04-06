@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   Feedback,
   FeedbackForUser,
+  LoginActivity,
   PasswordEntry,
   SecureNote,
+  SystemStats,
   UserProfile,
   UserRole,
   UserWithPrincipal,
@@ -364,6 +366,50 @@ export function useAdminDeleteUser() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["allUsersWithPrincipals"] });
       qc.invalidateQueries({ queryKey: ["activeUserCount"] });
+    },
+  });
+}
+
+export function useSystemStats() {
+  const { actor, isFetching } = useActor();
+  return useQuery<SystemStats>({
+    queryKey: ["systemStats"],
+    queryFn: async () => {
+      if (!actor)
+        return {
+          totalUsers: BigInt(0),
+          blockedUsers: BigInt(0),
+          totalPasswords: BigInt(0),
+          totalNotes: BigInt(0),
+          totalFeedback: BigInt(0),
+          unreadFeedback: BigInt(0),
+        };
+      return (actor as any).getSystemStats();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useLoginActivityLog() {
+  const { actor, isFetching } = useActor();
+  return useQuery<LoginActivity[]>({
+    queryKey: ["loginActivityLog"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getLoginActivityLog();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useRecordLoginActivity() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) return;
+      await (actor as any).recordLoginActivity(
+        BigInt(Date.now()) * BigInt(1_000_000),
+      );
     },
   });
 }

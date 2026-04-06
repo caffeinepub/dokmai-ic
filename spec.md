@@ -1,37 +1,39 @@
 # Dokmai IC
 
 ## Current State
-- Backend: Feedback type has `id`, `message`, `timestamp`, `status` fields. No reply field.
-- Admin Panel (v20): Displays all feedback with filter tabs (All/Unread/Read/Resolved), mark as read, mark as resolved, delete. No reply functionality.
-- FeedbackPage: User can submit feedback and view their own feedback history. No admin reply shown.
+
+Admin Panel has 2 sections implemented:
+- User Management (v19): view users with Principal ID, block/unblock, delete, usage stats
+- Feedback Management (v20/v21): filter tabs, mark read/resolved, delete, admin reply visible to users
+
+Backend has: `getActiveUserCount`, `listAllUsersWithPrincipals`, feedback CRUD with reply, password/notes CRUD.
+
+No system-level stats or login activity tracking exists yet.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `adminReply` optional field (`?Text`) to `Feedback` type
-- Backend: `adminReplyTimestamp` optional field (`?Int`) to `Feedback` type  
-- Backend: `adminReplyFeedback(user: Principal, feedbackId: Nat, reply: Text)` function — admin only
-- Backend: `getUserFeedbackWithReplies()` — user calls to get their own feedback including admin replies
-- Admin Panel: Reply button/input per feedback item; admin can type and submit reply
-- FeedbackPage: Show admin reply below each user feedback item with timestamp
+- Backend: `getSystemStats` query — returns total users, blocked users count, total passwords, total notes, total feedback, unread feedback count
+- Backend: `recordLoginActivity` shared call — records a login event (Principal, timestamp) in a stable log
+- Backend: `getLoginActivityLog` query (admin only) — returns array of `LoginActivity` records (principal, timestamp, loginCount)
+- Frontend: `SystemMonitoringSection` component added to AdminPage, positioned above UserManagement
+  - Overview cards: Total Users, Blocked Users, Unread Feedback, Total Passwords, Total Notes, Total Feedback
+  - Login Activity Log table: Principal ID (truncated + copy), timestamp of last login, login count
 
 ### Modify
-- `FeedbackWithPrincipal` type: add `adminReply: ?Text`, `adminReplyTimestamp: ?Int`
-- `getAllFeedbackEntries()`: return reply fields
-- `submitFeedbackEntry`: new feedback has `adminReply = null`, `adminReplyTimestamp = null`
-- `markFeedbackAsRead`, `markFeedbackAsResolved`, `adminDeleteFeedback`: preserve reply fields
-- FeedbackPage: update history display to show reply section
-- Backend bindings (backend.did.d.ts) regenerated automatically
+- `AdminPage.tsx`: Add `SystemMonitoringSection` between stats row and UserManagementSection
+- `useQueries.ts`: Add `useSystemStats` and `useLoginActivityLog` hooks
+- `main.mo`: Add `SystemStats` type, `LoginActivity` type, `loginActivityLog` stable var, `getSystemStats`, `recordLoginActivity`, `getLoginActivityLog` functions
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Update `Feedback` type in main.mo to include `adminReply: ?Text` and `adminReplyTimestamp: ?Int`
-2. Update `FeedbackWithPrincipal` type similarly
-3. Add `adminReplyFeedback` function in backend
-4. Add `getUserFeedbackWithReplies` query for users to fetch their own feedback with replies
-5. Update all functions that create/modify Feedback to carry reply fields
-6. Regenerate backend bindings
-7. Update AdminPage: add reply input per feedback item
-8. Update FeedbackPage: display admin reply below each feedback
+
+1. Add `LoginActivity` type and `loginActivityLog` stable map to backend
+2. Add `getSystemStats` query (admin only): aggregates user/feedback/password/note counts across all vaults
+3. Add `recordLoginActivity` shared call: upsert login record for caller (increment count, update timestamp)
+4. Add `getLoginActivityLog` query (admin only): return sorted login activity array
+5. Regenerate backend bindings
+6. Add `useSystemStats` and `useLoginActivityLog` hooks to `useQueries.ts`
+7. Build `SystemMonitoringSection` in AdminPage with overview stat cards and login activity table
