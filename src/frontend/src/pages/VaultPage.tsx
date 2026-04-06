@@ -7,18 +7,36 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileText,
+  Loader2,
+  Paperclip,
+  Plus,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+import type { SecureNote } from "../backend.d";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
   useAddSecureNote,
   useDeleteSecureNote,
   useSecureNotes,
 } from "../hooks/useQueries";
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function VaultPage() {
   const { t } = useLanguage();
@@ -27,25 +45,56 @@ export default function VaultPage() {
   const { mutate: deleteNote } = useDeleteSecureNote();
 
   const [showAdd, setShowAdd] = useState(false);
-  const [viewNote, setViewNote] = useState<{
-    title: string;
-    content: string;
-  } | null>(null);
+  const [viewNote, setViewNote] = useState<SecureNote | null>(null);
   const [newNote, setNewNote] = useState({ title: "", content: "" });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const resetAddForm = () => {
+    setNewNote({ title: "", content: "" });
+    setSelectedFile(null);
+    setUploadProgress(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleAddNote = () => {
     if (!newNote.title || !newNote.content) {
       toast.error("Title and content required");
       return;
     }
-    addNote(newNote, {
-      onSuccess: () => {
-        toast.success("Note saved!");
-        setNewNote({ title: "", content: "" });
-        setShowAdd(false);
+    setUploadProgress(selectedFile ? 0 : null);
+    addNote(
+      {
+        title: newNote.title,
+        content: newNote.content,
+        file: selectedFile,
+        onUploadProgress: selectedFile
+          ? (pct) => setUploadProgress(pct)
+          : undefined,
       },
-      onError: (e) => toast.error(`${t.error}: ${e.message}`),
-    });
+      {
+        onSuccess: () => {
+          toast.success("Note saved!");
+          resetAddForm();
+          setShowAdd(false);
+        },
+        onError: (e) => {
+          setUploadProgress(null);
+          toast.error(`${t.error}: ${e.message}`);
+        },
+      },
+    );
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   return (
@@ -149,12 +198,27 @@ export default function VaultPage() {
                           <FileText size={14} style={{ color: "#A855F7" }} />
                         </div>
                         <div>
-                          <p
-                            className="text-sm font-semibold"
-                            style={{ color: "#EAF2FF" }}
-                          >
-                            {note.title}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p
+                              className="text-sm font-semibold"
+                              style={{ color: "#EAF2FF" }}
+                            >
+                              {note.title}
+                            </p>
+                            {note.blob && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full"
+                                style={{
+                                  background: "rgba(34,211,238,0.1)",
+                                  border: "1px solid rgba(34,211,238,0.25)",
+                                  color: "#22D3EE",
+                                }}
+                              >
+                                <Paperclip size={9} />
+                                attachment
+                              </span>
+                            )}
+                          </div>
                           <p
                             className="text-xs truncate max-w-48"
                             style={{ color: "#9BB0C9" }}
@@ -242,7 +306,13 @@ export default function VaultPage() {
       </Tabs>
 
       {/* Add Note Dialog */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+      <Dialog
+        open={showAdd}
+        onOpenChange={(open) => {
+          if (!open) resetAddForm();
+          setShowAdd(open);
+        }}
+      >
         <DialogContent
           data-ocid="vault.add_note.dialog"
           style={{
@@ -268,7 +338,6 @@ export default function VaultPage() {
               <Input
                 id="vault-note-title"
                 data-ocid="vault.note_title.input"
-                placeholder="My Secret Note"
                 value={newNote.title}
                 onChange={(e) =>
                   setNewNote((p) => ({ ...p, title: e.target.value }))
@@ -291,7 +360,6 @@ export default function VaultPage() {
               <Textarea
                 id="vault-note-content"
                 data-ocid="vault.note_content.textarea"
-                placeholder="Write your secure note here..."
                 value={newNote.content}
                 onChange={(e) =>
                   setNewNote((p) => ({ ...p, content: e.target.value }))
@@ -305,11 +373,106 @@ export default function VaultPage() {
                 }}
               />
             </div>
+
+            {/* File Attachment Section */}
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "#9BB0C9" }}
+              >
+                Attachment (optional)
+              </Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="*/*"
+                className="hidden"
+                onChange={handleFileChange}
+                id="vault-note-file"
+              />
+              {selectedFile ? (
+                <div
+                  className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg"
+                  style={{
+                    background: "rgba(34,211,238,0.06)",
+                    border: "1px solid rgba(34,211,238,0.2)",
+                  }}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Paperclip
+                      size={13}
+                      style={{ color: "#22D3EE", flexShrink: 0 }}
+                    />
+                    <span
+                      className="text-xs truncate"
+                      style={{ color: "#EAF2FF" }}
+                    >
+                      {selectedFile.name}
+                    </span>
+                    <span
+                      className="text-xs flex-shrink-0"
+                      style={{ color: "#9BB0C9" }}
+                    >
+                      ({formatFileSize(selectedFile.size)})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFile}
+                    className="p-0.5 rounded hover:bg-white/10 flex-shrink-0"
+                    style={{ color: "#9BB0C9" }}
+                    aria-label="Remove file"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  data-ocid="vault.dropzone"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium transition-colors hover:bg-white/5"
+                  style={{
+                    background: "rgba(13,31,58,0.6)",
+                    border: "1px dashed rgba(26,51,84,0.8)",
+                    color: "#9BB0C9",
+                  }}
+                >
+                  <Upload size={13} />
+                  Choose file to attach
+                </button>
+              )}
+
+              {/* Upload progress */}
+              {uploadProgress !== null && (
+                <div className="mt-2" data-ocid="vault.add_note.loading_state">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs" style={{ color: "#9BB0C9" }}>
+                      Uploading...
+                    </span>
+                    <span className="text-xs" style={{ color: "#22D3EE" }}>
+                      {uploadProgress}%
+                    </span>
+                  </div>
+                  <Progress
+                    value={uploadProgress}
+                    className="h-1.5"
+                    style={{
+                      background: "rgba(26,51,84,0.8)",
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <Button
                 data-ocid="vault.add_note.cancel_button"
                 variant="outline"
-                onClick={() => setShowAdd(false)}
+                onClick={() => {
+                  resetAddForm();
+                  setShowAdd(false);
+                }}
                 className="flex-1 rounded-full"
                 style={{
                   borderColor: "#1A3354",
@@ -363,10 +526,31 @@ export default function VaultPage() {
           >
             {viewNote?.content}
           </div>
+
+          {/* Download attachment if present */}
+          {viewNote?.blob && (
+            <a
+              href={viewNote.blob.getDirectURL()}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-ocid="vault.view_note.secondary_button"
+              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full text-sm font-medium transition-colors"
+              style={{
+                background: "rgba(34,211,238,0.08)",
+                border: "1px solid rgba(34,211,238,0.25)",
+                color: "#22D3EE",
+                textDecoration: "none",
+              }}
+            >
+              <Download size={14} />
+              Download Attachment
+            </a>
+          )}
+
           <Button
             data-ocid="vault.view_note.close_button"
             onClick={() => setViewNote(null)}
-            className="rounded-full mt-2"
+            className="rounded-full mt-1"
             style={{
               background: "transparent",
               border: "1px solid #1A3354",

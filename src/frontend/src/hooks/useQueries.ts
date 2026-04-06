@@ -1,5 +1,6 @@
 import type { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ExternalBlob } from "../backend";
 import type {
   CustomField,
   Feedback,
@@ -338,9 +339,24 @@ export function useAddSecureNote() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { title: string; content: string }) => {
+    mutationFn: async (data: {
+      title: string;
+      content: string;
+      file?: File | null;
+      onUploadProgress?: (pct: number) => void;
+    }) => {
       if (!actor) throw new Error("Actor not ready");
-      await actor.addSecureNoteToVault(data.title, data.content, null);
+      let blob: ExternalBlob | null = null;
+      if (data.file) {
+        const arrayBuffer = await data.file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let externalBlob = ExternalBlob.fromBytes(bytes);
+        if (data.onUploadProgress) {
+          externalBlob = externalBlob.withUploadProgress(data.onUploadProgress);
+        }
+        blob = externalBlob;
+      }
+      await actor.addSecureNoteToVault(data.title, data.content, blob);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notes"] }),
   });
