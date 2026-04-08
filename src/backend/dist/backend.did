@@ -1,0 +1,184 @@
+type _CaffeineStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _CaffeineStorageRefillInformation = record {
+                                           proposed_top_up_amount: opt nat;};
+type _CaffeineStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type Username = text;
+type UserWithPrincipal = 
+ record {
+   isBlocked: bool;
+   language: Language;
+   name: text;
+   noteCount: nat;
+   passwordCount: nat;
+   "principal": principal;
+ };
+type UserStats = 
+ record {
+   noteCount: nat;
+   passwordCount: nat;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = 
+ record {
+   language: Language;
+   name: text;
+ };
+type SystemStats = 
+ record {
+   blockedUsers: nat;
+   totalFeedback: nat;
+   totalNotes: nat;
+   totalPasswords: nat;
+   totalUsers: nat;
+   unreadFeedback: nat;
+ };
+type StrongPassword = text;
+type SecureNote = 
+ record {
+   "blob": opt ExternalBlob;
+   content: text;
+   title: text;
+ };
+type PasswordHistoryEntry = 
+ record {
+   changedAt: int;
+   password: text;
+ };
+type PasswordEntry = 
+ record {
+   "blob": opt ExternalBlob;
+   category: text;
+   customFields: vec CustomField;
+   email: text;
+   notes: text;
+   password: StrongPassword;
+   title: text;
+   totp: text;
+   url: text;
+   username: Username;
+ };
+type LoginActivity = 
+ record {
+   lastLoginTimestamp: int;
+   loginCount: nat;
+   "principal": principal;
+ };
+type Language = 
+ variant {
+   en;
+   nl;
+   pl;
+   th;
+   zh;
+ };
+type FeedbackWithPrincipal = 
+ record {
+   adminReply: opt text;
+   adminReplyTimestamp: opt int;
+   id: nat;
+   message: text;
+   "principal": principal;
+   status: FeedbackStatus;
+   timestamp: int;
+ };
+type FeedbackStatus = 
+ variant {
+   read;
+   resolved;
+   unread;
+ };
+type FeedbackLegacy = 
+ record {
+   message: text;
+   timestamp: int;
+ };
+type FeedbackForUser = 
+ record {
+   adminReply: opt text;
+   adminReplyTimestamp: opt int;
+   id: nat;
+   message: text;
+   status: FeedbackStatus;
+   timestamp: int;
+ };
+type ExternalBlob = blob;
+type CustomField = 
+ record {
+   fieldType: text;
+   name: text;
+   value: text;
+ };
+service : {
+  _caffeineStorageBlobIsLive: (hash: blob) -> (bool) query;
+  _caffeineStorageBlobsToDelete: () -> (vec blob) query;
+  _caffeineStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _caffeineStorageCreateCertificate: (blobHash: text) ->
+   (_CaffeineStorageCreateCertificateResult);
+  _caffeineStorageRefillCashier: (refillInformation:
+   opt _CaffeineStorageRefillInformation) -> (_CaffeineStorageRefillResult);
+  _caffeineStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControlWithSecret: (userSecret: text) -> ();
+  addPasswordEntryToVault: (title: text, username: Username, password:
+   StrongPassword, url: text, notes: text, email: text, category: text, totp:
+   text, customFields: vec CustomField, "blob": opt ExternalBlob) -> ();
+  addSecureNoteToVault: (title: text, content: text, "blob":
+   opt ExternalBlob) -> ();
+  adminDeleteFeedback: (user: principal, feedbackId: nat) -> ();
+  adminDeleteUser: (user: principal) -> ();
+  adminReplyFeedback: (user: principal, feedbackId: nat, reply: text,
+   replyTimestamp: int) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  blockUser: (user: principal) -> ();
+  clearPasswordHistory: (title: text) -> ();
+  deletePasswordEntryFromVault: (title: text) -> ();
+  deleteSecureNoteFromVault: (title: text) -> ();
+  getActiveUserCount: () -> (nat) query;
+  getAllFeedbackEntries: () -> (vec FeedbackWithPrincipal);
+  getAllFeedbackEntriesForPrincipal: (id: principal) ->
+   (vec FeedbackLegacy) query;
+  getAllPasswordEntriesFromVault: () -> (vec PasswordEntry) query;
+  getAllSecureNotesFromVault: () -> (vec SecureNote) query;
+  getCallerUserProfile: () -> (UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getLoginActivityLog: () -> (vec LoginActivity) query;
+  getMaintenanceMode: () -> (bool) query;
+  getPasswordEntryFromVault: (title: text) -> (PasswordEntry) query;
+  getPasswordHistory: (title: text) -> (vec PasswordHistoryEntry) query;
+  getSecureNoteFromVault: (title: text) -> (SecureNote) query;
+  getSystemAnnouncement: () -> (opt text) query;
+  getSystemStats: () -> (SystemStats) query;
+  getUserFeedbackWithReplies: () -> (vec FeedbackForUser);
+  getUserProfile: (user: principal) -> (UserProfile) query;
+  getUserProfileFromVault: () -> (UserProfile) query;
+  getUserStats: (user: principal) -> (UserStats) query;
+  isCallerAdmin: () -> (bool) query;
+  isUserBlocked: (user: principal) -> (bool) query;
+  listAllUserProfiles: () -> (vec UserProfile) query;
+  listAllUsersWithPrincipals: () -> (vec UserWithPrincipal) query;
+  markFeedbackAsRead: (user: principal, feedbackId: nat) -> ();
+  markFeedbackAsResolved: (user: principal, feedbackId: nat) -> ();
+  recordLoginActivity: (timestamp: int) -> ();
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  setMaintenanceMode: (enabled: bool) -> ();
+  setSystemAnnouncement: ("text": opt text) -> ();
+  submitFeedbackEntry: (message: text, timestamp: int) -> ();
+  unblockUser: (user: principal) -> ();
+  updatePasswordEntryInVault: (title: text, username: Username, password:
+   StrongPassword, url: text, notes: text, email: text, category: text, totp:
+   text, customFields: vec CustomField, "blob": opt ExternalBlob, timestamp:
+   int) -> ();
+  updateUserProfileInVault: (name: text, language: Language) -> (UserProfile);
+}

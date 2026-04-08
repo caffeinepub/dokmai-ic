@@ -24,7 +24,6 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { LoginActivity, UserWithPrincipal } from "../backend.d";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
@@ -59,6 +58,7 @@ import {
   useUnblockUser,
 } from "../hooks/useQueries";
 import type { FeedbackWithPrincipal } from "../hooks/useQueries";
+import type { LoginActivity, SystemStats, UserWithPrincipal } from "../types";
 
 const STAT_CONFIGS = [
   {
@@ -1074,37 +1074,37 @@ function FeedbackSection() {
 
 const MONITORING_STAT_CONFIGS = [
   {
-    key: "totalUsers" as keyof import("../backend.d").SystemStats,
+    key: "totalUsers" as keyof SystemStats,
     label: "Total Users",
     icon: Users,
     color: "#22D3EE",
   },
   {
-    key: "blockedUsers" as keyof import("../backend.d").SystemStats,
+    key: "blockedUsers" as keyof SystemStats,
     label: "Blocked Users",
     icon: Ban,
     color: "#ef4444",
   },
   {
-    key: "unreadFeedback" as keyof import("../backend.d").SystemStats,
+    key: "unreadFeedback" as keyof SystemStats,
     label: "Unread Feedback",
     icon: MessageSquare,
     color: "#f59e0b",
   },
   {
-    key: "totalPasswords" as keyof import("../backend.d").SystemStats,
+    key: "totalPasswords" as keyof SystemStats,
     label: "Total Passwords",
     icon: KeyRound,
     color: "#A855F7",
   },
   {
-    key: "totalNotes" as keyof import("../backend.d").SystemStats,
+    key: "totalNotes" as keyof SystemStats,
     label: "Total Notes",
     icon: FileText,
     color: "#22c55e",
   },
   {
-    key: "totalFeedback" as keyof import("../backend.d").SystemStats,
+    key: "totalFeedback" as keyof SystemStats,
     label: "Total Feedback",
     icon: Inbox,
     color: "#64748b",

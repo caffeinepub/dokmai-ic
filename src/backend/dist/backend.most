@@ -1,0 +1,137 @@
+// Version: 1.0.0
+type CustomField__309861441 = {fieldType : Text; name : Text; value : Text};
+type Data__159895909<T> = {var count : Nat__490723111; elements : [var ?T]};
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type ExternalBlob__140892883 = Blob;
+type FeedbackLegacy__162353627 = {message : Text; timestamp : Int};
+type FeedbackStatus__651501689 = {#read; #resolved; #unread};
+type FeedbackV2__866380368 =
+  {
+    id : Nat;
+    message : Text;
+    status : FeedbackStatus__651501689;
+    timestamp : Int
+  };
+type Feedback__217957820 =
+  {
+    adminReply : ?Text;
+    adminReplyTimestamp : ?Int;
+    id : Nat;
+    message : Text;
+    status : FeedbackStatus__651501689;
+    timestamp : Int
+  };
+type Internal__667636161<T> =
+  {children : [var ?Node__92254746<T>]; data : Data__159895909<T>};
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Language__38428764 = {#en; #nl; #pl; #th; #zh};
+type Leaf__520550824<T> = {data : Data__159895909<T>};
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type LoginActivity__580982662 =
+  {lastLoginTimestamp : Int; loginCount : Nat; principal : Principal};
+type Map__158565046<K, V> = Map__297112838<K, V>;
+type Map__297112838<K, V> =
+  {var root : Node__46230540<K, V>; var size : Nat__490723111};
+type Map__605269027<K, V> = Map__158565046<K, V>;
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type Node__92254746<T> =
+  {#internal : Internal__667636161<T>; #leaf : Leaf__520550824<T>};
+type PasswordEntryLegacy__883947252 =
+  {
+    blob : ?ExternalBlob__140892883;
+    notes : Text;
+    password : StrongPassword__690055379;
+    title : Text;
+    url : Text;
+    username : Username__486063976
+  };
+type PasswordEntry__209927745 =
+  {
+    blob : ?ExternalBlob__140892883;
+    category : Text;
+    customFields : [CustomField__309861441];
+    email : Text;
+    notes : Text;
+    password : StrongPassword__690055379;
+    title : Text;
+    totp : Text;
+    url : Text;
+    username : Username__486063976
+  };
+type PasswordHistoryEntry__64131782 = {changedAt : Int; password : Text};
+type PasswordVaultLegacy__218734433 =
+  {
+    entries : [PasswordEntryLegacy__883947252];
+    notes : [SecureNote__840324454];
+    profile : UserProfile__491224006
+  };
+type PasswordVault__1012392275 =
+  {
+    entries : [PasswordEntry__209927745];
+    notes : [SecureNote__840324454];
+    profile : UserProfile__491224006
+  };
+type SecureNote__840324454 =
+  {blob : ?ExternalBlob__140892883; content : Text; title : Text};
+type StrongPassword__690055379 = Text;
+type UserProfile__491224006 = {language : Language__38428764; name : Text};
+type UserRole__521596351 = {#admin; #guest; #user};
+type Username__486063976 = Text;
+actor {
+  stable HARDCODED_ADMIN : Principal;
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__521596351>
+    };
+  stable blockedUsers :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111};
+  stable feedbackEntries :
+    {
+      var root : Node__46230540<Principal, [FeedbackLegacy__162353627]>;
+      var size : Nat__490723111
+    };
+  stable feedbackEntriesV2 :
+    {
+      var root : Node__46230540<Principal, [FeedbackV2__866380368]>;
+      var size : Nat__490723111
+    };
+  stable feedbackEntriesV3 :
+    {
+      var root : Node__46230540<Principal, [Feedback__217957820]>;
+      var size : Nat__490723111
+    };
+  stable var feedbackIdCounter : Nat;
+  stable var feedbackMigrated : Bool;
+  stable var feedbackV3Ready : Bool;
+  stable loginActivityLog :
+    {
+      var root : Node__46230540<Principal, LoginActivity__580982662>;
+      var size : Nat__490723111
+    };
+  stable var maintenanceMode : Bool;
+  stable passwordHistory :
+    {
+      var root : Node__46230540<Text, [PasswordHistoryEntry__64131782]>;
+      var size : Nat__490723111
+    };
+  stable passwordVaults :
+    {
+      var root : Node__46230540<Principal, PasswordVaultLegacy__218734433>;
+      var size : Nat__490723111
+    };
+  stable var passwordVaultsMigrated : Bool;
+  stable passwordVaultsV2 :
+    {
+      var root : Node__46230540<Principal, PasswordVault__1012392275>;
+      var size : Nat__490723111
+    };
+  stable var systemAnnouncement : ?Text;
+  stable userIdSet :
+    {var root : Node__92254746<Principal>; var size : Nat__490723111}
+};

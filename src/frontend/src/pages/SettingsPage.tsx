@@ -27,14 +27,17 @@ import {
   Download,
   ExternalLink,
   FileJson,
+  Key,
   Loader2,
   LogOut,
+  Mail,
+  ShieldCheck,
   Upload,
+  User,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Language } from "../backend.d";
 import { CsvExportModal } from "../components/passwords/CsvExportModal";
 import {
   CsvImportModal,
@@ -53,12 +56,16 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
+import { Language } from "../types";
+
+const EMAIL_STORAGE_KEY = "dokmai-user-email";
 
 export default function SettingsPage() {
   const { t, lang, setLang } = useLanguage();
   const { identity, clear } = useInternetIdentity();
   const { data: profile } = useUserProfile();
-  const { mutate: updateProfile, isPending: isSaving } = useUpdateUserProfile();
+  const { mutate: updateProfile, isPending: isSavingProfile } =
+    useUpdateUserProfile();
   const { data: passwords } = usePasswordEntries();
   const { data: notes } = useSecureNotes();
   const { mutateAsync: addPasswordAsync } = useAddPassword();
@@ -66,20 +73,37 @@ export default function SettingsPage() {
   const navigate = useNavigate();
 
   const principal = identity?.getPrincipal().toText() ?? "";
-  const [copiedPrincipal, setCopiedPrincipal] = useState(false);
-  const [displayName, setDisplayName] = useState(profile?.name ?? "");
+
+  // Profile fields
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState(
+    () => localStorage.getItem(EMAIL_STORAGE_KEY) ?? "",
+  );
+
+  // Copy state for principal ID
+  const [copied, setCopied] = useState(false);
+
+  // Modal state
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [showCsvExport, setShowCsvExport] = useState(false);
   const [isExportingJson, setIsExportingJson] = useState(false);
 
-  const copyPrincipal = async () => {
-    await navigator.clipboard.writeText(principal);
-    setCopiedPrincipal(true);
-    toast.success("Principal ID copied!");
-    setTimeout(() => setCopiedPrincipal(false), 2000);
+  // Pre-populate display name from backend
+  useEffect(() => {
+    if (profile?.name) {
+      setDisplayName(profile.name);
+    }
+  }, [profile?.name]);
+
+  const handleCopyPrincipal = () => {
+    if (!principal) return;
+    navigator.clipboard.writeText(principal).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
-  const handleSave = () => {
+  const handleSaveProfile = () => {
     const langMap: Record<LangCode, Language> = {
       en: Language.en,
       nl: Language.nl,
@@ -87,10 +111,18 @@ export default function SettingsPage() {
       th: Language.th,
       zh: Language.zh,
     };
+
+    // Save email to localStorage
+    localStorage.setItem(EMAIL_STORAGE_KEY, email.trim());
+
+    // Save display name to backend
     updateProfile(
-      { name: displayName || (profile?.name ?? ""), language: langMap[lang] },
       {
-        onSuccess: () => toast.success("Settings saved!"),
+        name: displayName.trim() || (profile?.name ?? ""),
+        language: langMap[lang],
+      },
+      {
+        onSuccess: () => toast.success("Profile saved!"),
         onError: (e) => toast.error(`${t.error}: ${e.message}`),
       },
     );
@@ -114,7 +146,6 @@ export default function SettingsPage() {
         console.error("CSV import entry failed:", entry.title, err);
       }
     }
-    // Force refresh password list after all imports complete
     await qc.invalidateQueries({ queryKey: ["passwords"] });
     await qc.refetchQueries({ queryKey: ["passwords"] });
   };
@@ -142,18 +173,18 @@ export default function SettingsPage() {
               fieldType: cf.fieldType,
             })),
             attachmentFilename:
-              (p.blob as any)?.filename ??
-              (p.blob as any)?.name ??
-              (p.blob as any)?.blobId ??
+              (p.blob as unknown as Record<string, unknown>)?.filename ??
+              (p.blob as unknown as Record<string, unknown>)?.name ??
+              (p.blob as unknown as Record<string, unknown>)?.blobId ??
               null,
           })),
           notes: (notes ?? []).map((n) => ({
             title: n.title,
             content: n.content,
             attachmentFilename:
-              (n.blob as any)?.filename ??
-              (n.blob as any)?.name ??
-              (n.blob as any)?.blobId ??
+              (n.blob as unknown as Record<string, unknown>)?.filename ??
+              (n.blob as unknown as Record<string, unknown>)?.name ??
+              (n.blob as unknown as Record<string, unknown>)?.blobId ??
               null,
           })),
         },
@@ -189,11 +220,11 @@ export default function SettingsPage() {
           {t.settingsTitle}
         </h1>
         <p className="text-sm" style={{ color: "#9BB0C9" }}>
-          Manage your account and preferences
+          Manage your profile, identity, and preferences
         </p>
       </div>
 
-      {/* Profile */}
+      {/* Profile Section */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -201,32 +232,86 @@ export default function SettingsPage() {
         className="card-gradient-border p-5"
       >
         <h3 className="font-semibold mb-4 text-sm" style={{ color: "#22D3EE" }}>
-          {t.settingsProfile}
+          Profile
         </h3>
-        <div>
-          <Label
-            htmlFor="settings-name"
-            className="text-xs mb-1 block"
-            style={{ color: "#9BB0C9" }}
+        <div className="flex flex-col gap-4">
+          {/* Display Name */}
+          <div>
+            <Label
+              htmlFor="settings-name"
+              className="text-xs mb-1.5 flex items-center gap-1.5"
+              style={{ color: "#9BB0C9" }}
+            >
+              <User size={12} />
+              Display Name
+            </Label>
+            <Input
+              id="settings-name"
+              data-ocid="settings.profile_name.input"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveProfile();
+              }}
+              style={{
+                background: "#071427",
+                border: "1px solid #1A3354",
+                color: "#EAF2FF",
+              }}
+            />
+            <p className="text-xs mt-1" style={{ color: "#9BB0C9" }}>
+              Shown in the sidebar and avatar area.
+            </p>
+          </div>
+
+          {/* Email Address */}
+          <div>
+            <Label
+              htmlFor="settings-email"
+              className="text-xs mb-1.5 flex items-center gap-1.5"
+              style={{ color: "#9BB0C9" }}
+            >
+              <Mail size={12} />
+              Email Address
+            </Label>
+            <Input
+              id="settings-email"
+              data-ocid="settings.profile_email.input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveProfile();
+              }}
+              style={{
+                background: "#071427",
+                border: "1px solid #1A3354",
+                color: "#EAF2FF",
+              }}
+            />
+            <p className="text-xs mt-1" style={{ color: "#9BB0C9" }}>
+              Stored locally on this device. Shown in the avatar dropdown menu.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end mt-4">
+          <Button
+            data-ocid="settings.profile_save.primary_button"
+            onClick={handleSaveProfile}
+            disabled={isSavingProfile}
+            className="rounded-full font-semibold text-sm px-6"
+            style={{ background: "#22D3EE", color: "#071427" }}
           >
-            {t.settingsName}
-          </Label>
-          <Input
-            id="settings-name"
-            data-ocid="settings.name.input"
-            placeholder="Enter display name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            style={{
-              background: "#071427",
-              border: "1px solid #1A3354",
-              color: "#EAF2FF",
-            }}
-          />
+            {isSavingProfile ? (
+              <Loader2 size={14} className="animate-spin mr-1.5" />
+            ) : null}
+            Save Profile
+          </Button>
         </div>
       </motion.section>
 
-      {/* Account IDs */}
+      {/* Identity Section */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -234,34 +319,69 @@ export default function SettingsPage() {
         className="card-gradient-border p-5"
       >
         <h3 className="font-semibold mb-4 text-sm" style={{ color: "#22D3EE" }}>
-          {t.settingsAccountId}
+          Identity
         </h3>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
+          {/* Principal ID */}
           <div>
-            <p className="text-xs mb-1" style={{ color: "#9BB0C9" }}>
-              {t.settingsPrincipalId}
-            </p>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Key size={12} style={{ color: "#9BB0C9" }} />
+              <span className="text-xs" style={{ color: "#9BB0C9" }}>
+                Principal ID
+              </span>
+            </div>
             <div className="flex items-center gap-2">
-              <div className="mono-id flex-1">
+              <div className="mono-id flex-1 min-w-0 truncate">
                 {principal || "Not authenticated"}
               </div>
-              <button
-                type="button"
-                onClick={copyPrincipal}
-                className="p-2 rounded-lg hover:bg-white/5 transition-colors flex-shrink-0"
-                style={{ color: copiedPrincipal ? "#22D3EE" : "#9BB0C9" }}
-                aria-label="Copy principal ID"
-                data-ocid="settings.principal.copy.button"
-              >
-                {copiedPrincipal ? <Check size={15} /> : <Copy size={15} />}
-              </button>
+              {principal && (
+                <button
+                  type="button"
+                  onClick={handleCopyPrincipal}
+                  data-ocid="settings.identity_copy.button"
+                  className="flex-shrink-0 p-2 rounded-lg transition-all"
+                  style={{
+                    background: copied
+                      ? "rgba(34,197,94,0.12)"
+                      : "rgba(34,211,238,0.08)",
+                    border: copied
+                      ? "1px solid rgba(34,197,94,0.3)"
+                      : "1px solid rgba(34,211,238,0.2)",
+                    color: copied ? "#22c55e" : "#22D3EE",
+                  }}
+                  aria-label="Copy Principal ID"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              )}
             </div>
           </div>
+
+          {/* Authentication Status */}
           <div>
-            <p className="text-xs mb-1" style={{ color: "#9BB0C9" }}>
-              {t.settingsAccountId} (ICP)
-            </p>
-            <div className="mono-id">{principal || "Not authenticated"}</div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <ShieldCheck size={12} style={{ color: "#9BB0C9" }} />
+              <span className="text-xs" style={{ color: "#9BB0C9" }}>
+                Authentication Status
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{
+                  background: identity ? "#22c55e" : "#ef4444",
+                  boxShadow: identity ? "0 0 8px #22c55e" : undefined,
+                }}
+              />
+              <span
+                className="text-sm"
+                style={{ color: identity ? "#22c55e" : "#ef4444" }}
+              >
+                {identity
+                  ? "Authenticated via Internet Identity"
+                  : "Not authenticated"}
+              </span>
+            </div>
           </div>
         </div>
       </motion.section>
@@ -385,7 +505,7 @@ export default function SettingsPage() {
         />
       </motion.section>
 
-      {/* Manage II */}
+      {/* Internet Identity & Logout */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -415,12 +535,12 @@ export default function SettingsPage() {
         </a>
       </motion.section>
 
-      {/* Actions */}
+      {/* Logout */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
-        className="flex items-center justify-between gap-3"
+        className="flex items-center"
       >
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -475,19 +595,6 @@ export default function SettingsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        <Button
-          data-ocid="settings.save.primary_button"
-          onClick={handleSave}
-          disabled={isSaving}
-          className="rounded-full font-semibold text-sm"
-          style={{ background: "#22D3EE", color: "#071427" }}
-        >
-          {isSaving ? (
-            <Loader2 size={14} className="animate-spin mr-1" />
-          ) : null}
-          {t.settingsSave}
-        </Button>
       </motion.div>
     </div>
   );

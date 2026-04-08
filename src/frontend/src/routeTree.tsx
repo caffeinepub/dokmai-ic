@@ -1,26 +1,33 @@
-import { Outlet, createRootRoute, createRoute } from "@tanstack/react-router";
+import {
+  Outlet,
+  createRootRoute,
+  createRoute,
+  redirect,
+} from "@tanstack/react-router";
 import Header from "./components/layout/Header";
 import Sidebar from "./components/layout/Sidebar";
+import { useLayoutContext } from "./contexts/LayoutContext";
 import AdminPage from "./pages/AdminPage";
 import BackupPage from "./pages/BackupPage";
 import DashboardPage from "./pages/DashboardPage";
 import FeedbackPage from "./pages/FeedbackPage";
 import HelpPage from "./pages/HelpPage";
-import IdentityPage from "./pages/IdentityPage";
 import PasswordsPage from "./pages/PasswordsPage";
 import SettingsPage from "./pages/SettingsPage";
 import VaultPage from "./pages/VaultPage";
 
-const rootRoute = createRootRoute({
-  component: () => (
+function RootLayout() {
+  const { contentMargin } = useLayoutContext();
+
+  return (
     <div className="flex min-h-screen" style={{ background: "#071427" }}>
       <Sidebar />
       <div
         className="flex flex-col flex-1 min-w-0 transition-all duration-300"
-        style={{ marginLeft: "264px" }}
+        style={{ marginLeft: `${contentMargin}px` }}
       >
         <Header />
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 md:p-6">
           <Outlet />
         </main>
         <footer
@@ -40,7 +47,11 @@ const rootRoute = createRootRoute({
         </footer>
       </div>
     </div>
-  ),
+  );
+}
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
 });
 
 const dashboardRoute = createRoute({
@@ -58,11 +69,23 @@ const vaultRoute = createRoute({
   path: "/vault",
   component: VaultPage,
 });
+
+// /identity and /profile now redirect to /settings
 const identityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/identity",
-  component: IdentityPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/settings" });
+  },
 });
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile",
+  beforeLoad: () => {
+    throw redirect({ to: "/settings" });
+  },
+});
+
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin",
@@ -94,6 +117,7 @@ export const routeTree = rootRoute.addChildren([
   passwordsRoute,
   vaultRoute,
   identityRoute,
+  profileRoute,
   adminRoute,
   settingsRoute,
   feedbackRoute,

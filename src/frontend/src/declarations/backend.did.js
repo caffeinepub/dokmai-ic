@@ -21,13 +21,32 @@ export const _CaffeineStorageRefillResult = IDL.Record({
 });
 export const Username = IDL.Text;
 export const StrongPassword = IDL.Text;
+export const CustomField = IDL.Record({
+  'value' : IDL.Text,
+  'name' : IDL.Text,
+  'fieldType' : IDL.Text,
+});
 export const ExternalBlob = IDL.Vec(IDL.Nat8);
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
-export const Feedback = IDL.Record({
+export const FeedbackStatus = IDL.Variant({
+  'resolved' : IDL.Null,
+  'read' : IDL.Null,
+  'unread' : IDL.Null,
+});
+export const FeedbackWithPrincipal = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : FeedbackStatus,
+  'principal' : IDL.Principal,
+  'adminReply' : IDL.Opt(IDL.Text),
+  'message' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'adminReplyTimestamp' : IDL.Opt(IDL.Int),
+});
+export const FeedbackLegacy = IDL.Record({
   'message' : IDL.Text,
   'timestamp' : IDL.Int,
 });
@@ -37,7 +56,11 @@ export const PasswordEntry = IDL.Record({
   'username' : Username,
   'blob' : IDL.Opt(ExternalBlob),
   'password' : StrongPassword,
+  'totp' : IDL.Text,
+  'email' : IDL.Text,
+  'customFields' : IDL.Vec(CustomField),
   'notes' : IDL.Text,
+  'category' : IDL.Text,
 });
 export const SecureNote = IDL.Record({
   'title' : IDL.Text,
@@ -54,6 +77,43 @@ export const Language = IDL.Variant({
 export const UserProfile = IDL.Record({
   'name' : IDL.Text,
   'language' : Language,
+});
+export const LoginActivity = IDL.Record({
+  'principal' : IDL.Principal,
+  'loginCount' : IDL.Nat,
+  'lastLoginTimestamp' : IDL.Int,
+});
+export const PasswordHistoryEntry = IDL.Record({
+  'changedAt' : IDL.Int,
+  'password' : IDL.Text,
+});
+export const SystemStats = IDL.Record({
+  'blockedUsers' : IDL.Nat,
+  'totalPasswords' : IDL.Nat,
+  'unreadFeedback' : IDL.Nat,
+  'totalFeedback' : IDL.Nat,
+  'totalNotes' : IDL.Nat,
+  'totalUsers' : IDL.Nat,
+});
+export const FeedbackForUser = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : FeedbackStatus,
+  'adminReply' : IDL.Opt(IDL.Text),
+  'message' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'adminReplyTimestamp' : IDL.Opt(IDL.Int),
+});
+export const UserStats = IDL.Record({
+  'noteCount' : IDL.Nat,
+  'passwordCount' : IDL.Nat,
+});
+export const UserWithPrincipal = IDL.Record({
+  'principal' : IDL.Principal,
+  'isBlocked' : IDL.Bool,
+  'name' : IDL.Text,
+  'language' : Language,
+  'noteCount' : IDL.Nat,
+  'passwordCount' : IDL.Nat,
 });
 
 export const idlService = IDL.Service({
@@ -91,6 +151,10 @@ export const idlService = IDL.Service({
         StrongPassword,
         IDL.Text,
         IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Vec(CustomField),
         IDL.Opt(ExternalBlob),
       ],
       [],
@@ -101,13 +165,23 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
+  'adminDeleteFeedback' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+  'adminDeleteUser' : IDL.Func([IDL.Principal], [], []),
+  'adminReplyFeedback' : IDL.Func(
+      [IDL.Principal, IDL.Nat, IDL.Text, IDL.Int],
+      [],
+      [],
+    ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'blockUser' : IDL.Func([IDL.Principal], [], []),
+  'clearPasswordHistory' : IDL.Func([IDL.Text], [], []),
   'deletePasswordEntryFromVault' : IDL.Func([IDL.Text], [], []),
   'deleteSecureNoteFromVault' : IDL.Func([IDL.Text], [], []),
   'getActiveUserCount' : IDL.Func([], [IDL.Nat], ['query']),
+  'getAllFeedbackEntries' : IDL.Func([], [IDL.Vec(FeedbackWithPrincipal)], []),
   'getAllFeedbackEntriesForPrincipal' : IDL.Func(
       [IDL.Principal],
-      [IDL.Vec(Feedback)],
+      [IDL.Vec(FeedbackLegacy)],
       ['query'],
     ),
   'getAllPasswordEntriesFromVault' : IDL.Func(
@@ -118,18 +192,58 @@ export const idlService = IDL.Service({
   'getAllSecureNotesFromVault' : IDL.Func([], [IDL.Vec(SecureNote)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [UserProfile], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getLoginActivityLog' : IDL.Func([], [IDL.Vec(LoginActivity)], ['query']),
+  'getMaintenanceMode' : IDL.Func([], [IDL.Bool], ['query']),
   'getPasswordEntryFromVault' : IDL.Func(
       [IDL.Text],
       [PasswordEntry],
       ['query'],
     ),
+  'getPasswordHistory' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(PasswordHistoryEntry)],
+      ['query'],
+    ),
   'getSecureNoteFromVault' : IDL.Func([IDL.Text], [SecureNote], ['query']),
+  'getSystemAnnouncement' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
+  'getSystemStats' : IDL.Func([], [SystemStats], ['query']),
+  'getUserFeedbackWithReplies' : IDL.Func([], [IDL.Vec(FeedbackForUser)], []),
   'getUserProfile' : IDL.Func([IDL.Principal], [UserProfile], ['query']),
   'getUserProfileFromVault' : IDL.Func([], [UserProfile], ['query']),
+  'getUserStats' : IDL.Func([IDL.Principal], [UserStats], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isUserBlocked' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
   'listAllUserProfiles' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
+  'listAllUsersWithPrincipals' : IDL.Func(
+      [],
+      [IDL.Vec(UserWithPrincipal)],
+      ['query'],
+    ),
+  'markFeedbackAsRead' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+  'markFeedbackAsResolved' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+  'recordLoginActivity' : IDL.Func([IDL.Int], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'setMaintenanceMode' : IDL.Func([IDL.Bool], [], []),
+  'setSystemAnnouncement' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
   'submitFeedbackEntry' : IDL.Func([IDL.Text, IDL.Int], [], []),
+  'unblockUser' : IDL.Func([IDL.Principal], [], []),
+  'updatePasswordEntryInVault' : IDL.Func(
+      [
+        IDL.Text,
+        Username,
+        StrongPassword,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Vec(CustomField),
+        IDL.Opt(ExternalBlob),
+        IDL.Int,
+      ],
+      [],
+      [],
+    ),
   'updateUserProfileInVault' : IDL.Func(
       [IDL.Text, Language],
       [UserProfile],
@@ -153,20 +267,46 @@ export const idlFactory = ({ IDL }) => {
   });
   const Username = IDL.Text;
   const StrongPassword = IDL.Text;
+  const CustomField = IDL.Record({
+    'value' : IDL.Text,
+    'name' : IDL.Text,
+    'fieldType' : IDL.Text,
+  });
   const ExternalBlob = IDL.Vec(IDL.Nat8);
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const Feedback = IDL.Record({ 'message' : IDL.Text, 'timestamp' : IDL.Int });
+  const FeedbackStatus = IDL.Variant({
+    'resolved' : IDL.Null,
+    'read' : IDL.Null,
+    'unread' : IDL.Null,
+  });
+  const FeedbackWithPrincipal = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : FeedbackStatus,
+    'principal' : IDL.Principal,
+    'adminReply' : IDL.Opt(IDL.Text),
+    'message' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'adminReplyTimestamp' : IDL.Opt(IDL.Int),
+  });
+  const FeedbackLegacy = IDL.Record({
+    'message' : IDL.Text,
+    'timestamp' : IDL.Int,
+  });
   const PasswordEntry = IDL.Record({
     'url' : IDL.Text,
     'title' : IDL.Text,
     'username' : Username,
     'blob' : IDL.Opt(ExternalBlob),
     'password' : StrongPassword,
+    'totp' : IDL.Text,
+    'email' : IDL.Text,
+    'customFields' : IDL.Vec(CustomField),
     'notes' : IDL.Text,
+    'category' : IDL.Text,
   });
   const SecureNote = IDL.Record({
     'title' : IDL.Text,
@@ -181,6 +321,43 @@ export const idlFactory = ({ IDL }) => {
     'zh' : IDL.Null,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text, 'language' : Language });
+  const LoginActivity = IDL.Record({
+    'principal' : IDL.Principal,
+    'loginCount' : IDL.Nat,
+    'lastLoginTimestamp' : IDL.Int,
+  });
+  const PasswordHistoryEntry = IDL.Record({
+    'changedAt' : IDL.Int,
+    'password' : IDL.Text,
+  });
+  const SystemStats = IDL.Record({
+    'blockedUsers' : IDL.Nat,
+    'totalPasswords' : IDL.Nat,
+    'unreadFeedback' : IDL.Nat,
+    'totalFeedback' : IDL.Nat,
+    'totalNotes' : IDL.Nat,
+    'totalUsers' : IDL.Nat,
+  });
+  const FeedbackForUser = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : FeedbackStatus,
+    'adminReply' : IDL.Opt(IDL.Text),
+    'message' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'adminReplyTimestamp' : IDL.Opt(IDL.Int),
+  });
+  const UserStats = IDL.Record({
+    'noteCount' : IDL.Nat,
+    'passwordCount' : IDL.Nat,
+  });
+  const UserWithPrincipal = IDL.Record({
+    'principal' : IDL.Principal,
+    'isBlocked' : IDL.Bool,
+    'name' : IDL.Text,
+    'language' : Language,
+    'noteCount' : IDL.Nat,
+    'passwordCount' : IDL.Nat,
+  });
   
   return IDL.Service({
     '_caffeineStorageBlobIsLive' : IDL.Func(
@@ -217,6 +394,10 @@ export const idlFactory = ({ IDL }) => {
           StrongPassword,
           IDL.Text,
           IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Vec(CustomField),
           IDL.Opt(ExternalBlob),
         ],
         [],
@@ -227,13 +408,27 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'adminDeleteFeedback' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+    'adminDeleteUser' : IDL.Func([IDL.Principal], [], []),
+    'adminReplyFeedback' : IDL.Func(
+        [IDL.Principal, IDL.Nat, IDL.Text, IDL.Int],
+        [],
+        [],
+      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'blockUser' : IDL.Func([IDL.Principal], [], []),
+    'clearPasswordHistory' : IDL.Func([IDL.Text], [], []),
     'deletePasswordEntryFromVault' : IDL.Func([IDL.Text], [], []),
     'deleteSecureNoteFromVault' : IDL.Func([IDL.Text], [], []),
     'getActiveUserCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getAllFeedbackEntries' : IDL.Func(
+        [],
+        [IDL.Vec(FeedbackWithPrincipal)],
+        [],
+      ),
     'getAllFeedbackEntriesForPrincipal' : IDL.Func(
         [IDL.Principal],
-        [IDL.Vec(Feedback)],
+        [IDL.Vec(FeedbackLegacy)],
         ['query'],
       ),
     'getAllPasswordEntriesFromVault' : IDL.Func(
@@ -248,18 +443,58 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getCallerUserProfile' : IDL.Func([], [UserProfile], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getLoginActivityLog' : IDL.Func([], [IDL.Vec(LoginActivity)], ['query']),
+    'getMaintenanceMode' : IDL.Func([], [IDL.Bool], ['query']),
     'getPasswordEntryFromVault' : IDL.Func(
         [IDL.Text],
         [PasswordEntry],
         ['query'],
       ),
+    'getPasswordHistory' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(PasswordHistoryEntry)],
+        ['query'],
+      ),
     'getSecureNoteFromVault' : IDL.Func([IDL.Text], [SecureNote], ['query']),
+    'getSystemAnnouncement' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
+    'getSystemStats' : IDL.Func([], [SystemStats], ['query']),
+    'getUserFeedbackWithReplies' : IDL.Func([], [IDL.Vec(FeedbackForUser)], []),
     'getUserProfile' : IDL.Func([IDL.Principal], [UserProfile], ['query']),
     'getUserProfileFromVault' : IDL.Func([], [UserProfile], ['query']),
+    'getUserStats' : IDL.Func([IDL.Principal], [UserStats], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isUserBlocked' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'listAllUserProfiles' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
+    'listAllUsersWithPrincipals' : IDL.Func(
+        [],
+        [IDL.Vec(UserWithPrincipal)],
+        ['query'],
+      ),
+    'markFeedbackAsRead' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+    'markFeedbackAsResolved' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+    'recordLoginActivity' : IDL.Func([IDL.Int], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'setMaintenanceMode' : IDL.Func([IDL.Bool], [], []),
+    'setSystemAnnouncement' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
     'submitFeedbackEntry' : IDL.Func([IDL.Text, IDL.Int], [], []),
+    'unblockUser' : IDL.Func([IDL.Principal], [], []),
+    'updatePasswordEntryInVault' : IDL.Func(
+        [
+          IDL.Text,
+          Username,
+          StrongPassword,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Vec(CustomField),
+          IDL.Opt(ExternalBlob),
+          IDL.Int,
+        ],
+        [],
+        [],
+      ),
     'updateUserProfileInVault' : IDL.Func(
         [IDL.Text, Language],
         [UserProfile],

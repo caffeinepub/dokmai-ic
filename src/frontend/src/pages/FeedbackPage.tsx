@@ -4,12 +4,12 @@ import { Clock, Loader2, MessageSquare, Send, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { FeedbackForUser } from "../backend.d";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
   useSubmitFeedback,
   useUserFeedbackWithReplies,
 } from "../hooks/useQueries";
+import type { FeedbackForUser } from "../types";
 
 function FeedbackStatusBadge({
   status,

@@ -1,4 +1,5 @@
 import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { LayoutProvider } from "../../contexts/LayoutContext";
 import { routeTree } from "../../routeTree";
 
 const router = createRouter({ routeTree });
@@ -10,5 +11,9 @@ declare module "@tanstack/react-router" {
 }
 
 export default function AppLayout() {
-  return <RouterProvider router={router} />;
+  return (
+    <LayoutProvider>
+      <RouterProvider router={router} />
+    </LayoutProvider>
+  );
 }

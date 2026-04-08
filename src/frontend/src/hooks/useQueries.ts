@@ -11,8 +11,8 @@ import type {
   UserProfile,
   UserRole,
   UserWithPrincipal,
-} from "../backend.d";
-import { Language } from "../backend.d";
+} from "../types";
+import { Language } from "../types";
 import { useActor } from "./useActor";
 
 export interface FeedbackWithPrincipal {
@@ -426,7 +426,16 @@ export function useUpdateUserProfile() {
       if (!actor) throw new Error("Actor not ready");
       return actor.updateUserProfileInVault(data.name, data.language);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["userProfile"] }),
+    onSuccess: (_result, variables) => {
+      // Immediately update the cache so Header re-renders without waiting for refetch
+      qc.setQueryData<UserProfile>(["userProfile"], (prev) => ({
+        ...(prev ?? { language: variables.language }),
+        name: variables.name,
+        language: variables.language,
+      }));
+      // Also invalidate to sync with backend in background
+      qc.invalidateQueries({ queryKey: ["userProfile"] });
+    },
   });
 }
 

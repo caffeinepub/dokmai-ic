@@ -24,13 +24,13 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import type { SecureNote } from "../backend.d";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
   useAddSecureNote,
   useDeleteSecureNote,
   useSecureNotes,
 } from "../hooks/useQueries";
+import type { SecureNote } from "../types";
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 

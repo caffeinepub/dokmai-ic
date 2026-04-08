@@ -10,20 +10,58 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface CustomField {
+  'value' : string,
+  'name' : string,
+  'fieldType' : string,
+}
 export type ExternalBlob = Uint8Array;
-export interface Feedback { 'message' : string, 'timestamp' : bigint }
+export interface FeedbackForUser {
+  'id' : bigint,
+  'status' : FeedbackStatus,
+  'adminReply' : [] | [string],
+  'message' : string,
+  'timestamp' : bigint,
+  'adminReplyTimestamp' : [] | [bigint],
+}
+export interface FeedbackLegacy { 'message' : string, 'timestamp' : bigint }
+export type FeedbackStatus = { 'resolved' : null } |
+  { 'read' : null } |
+  { 'unread' : null };
+export interface FeedbackWithPrincipal {
+  'id' : bigint,
+  'status' : FeedbackStatus,
+  'principal' : Principal,
+  'adminReply' : [] | [string],
+  'message' : string,
+  'timestamp' : bigint,
+  'adminReplyTimestamp' : [] | [bigint],
+}
 export type Language = { 'en' : null } |
   { 'nl' : null } |
   { 'pl' : null } |
   { 'th' : null } |
   { 'zh' : null };
+export interface LoginActivity {
+  'principal' : Principal,
+  'loginCount' : bigint,
+  'lastLoginTimestamp' : bigint,
+}
 export interface PasswordEntry {
   'url' : string,
   'title' : string,
   'username' : Username,
   'blob' : [] | [ExternalBlob],
   'password' : StrongPassword,
+  'totp' : string,
+  'email' : string,
+  'customFields' : Array<CustomField>,
   'notes' : string,
+  'category' : string,
+}
+export interface PasswordHistoryEntry {
+  'changedAt' : bigint,
+  'password' : string,
 }
 export interface SecureNote {
   'title' : string,
@@ -31,10 +69,27 @@ export interface SecureNote {
   'blob' : [] | [ExternalBlob],
 }
 export type StrongPassword = string;
+export interface SystemStats {
+  'blockedUsers' : bigint,
+  'totalPasswords' : bigint,
+  'unreadFeedback' : bigint,
+  'totalFeedback' : bigint,
+  'totalNotes' : bigint,
+  'totalUsers' : bigint,
+}
 export interface UserProfile { 'name' : string, 'language' : Language }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface UserStats { 'noteCount' : bigint, 'passwordCount' : bigint }
+export interface UserWithPrincipal {
+  'principal' : Principal,
+  'isBlocked' : boolean,
+  'name' : string,
+  'language' : Language,
+  'noteCount' : bigint,
+  'passwordCount' : bigint,
+}
 export type Username = string;
 export interface _CaffeineStorageCreateCertificateResult {
   'method' : string,
@@ -65,33 +120,84 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addPasswordEntryToVault' : ActorMethod<
-    [string, Username, StrongPassword, string, string, [] | [ExternalBlob]],
+    [
+      string,
+      Username,
+      StrongPassword,
+      string,
+      string,
+      string,
+      string,
+      string,
+      Array<CustomField>,
+      [] | [ExternalBlob],
+    ],
     undefined
   >,
   'addSecureNoteToVault' : ActorMethod<
     [string, string, [] | [ExternalBlob]],
     undefined
   >,
+  'adminDeleteFeedback' : ActorMethod<[Principal, bigint], undefined>,
+  'adminDeleteUser' : ActorMethod<[Principal], undefined>,
+  'adminReplyFeedback' : ActorMethod<
+    [Principal, bigint, string, bigint],
+    undefined
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'blockUser' : ActorMethod<[Principal], undefined>,
+  'clearPasswordHistory' : ActorMethod<[string], undefined>,
   'deletePasswordEntryFromVault' : ActorMethod<[string], undefined>,
   'deleteSecureNoteFromVault' : ActorMethod<[string], undefined>,
   'getActiveUserCount' : ActorMethod<[], bigint>,
+  'getAllFeedbackEntries' : ActorMethod<[], Array<FeedbackWithPrincipal>>,
   'getAllFeedbackEntriesForPrincipal' : ActorMethod<
     [Principal],
-    Array<Feedback>
+    Array<FeedbackLegacy>
   >,
   'getAllPasswordEntriesFromVault' : ActorMethod<[], Array<PasswordEntry>>,
   'getAllSecureNotesFromVault' : ActorMethod<[], Array<SecureNote>>,
   'getCallerUserProfile' : ActorMethod<[], UserProfile>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getLoginActivityLog' : ActorMethod<[], Array<LoginActivity>>,
+  'getMaintenanceMode' : ActorMethod<[], boolean>,
   'getPasswordEntryFromVault' : ActorMethod<[string], PasswordEntry>,
+  'getPasswordHistory' : ActorMethod<[string], Array<PasswordHistoryEntry>>,
   'getSecureNoteFromVault' : ActorMethod<[string], SecureNote>,
+  'getSystemAnnouncement' : ActorMethod<[], [] | [string]>,
+  'getSystemStats' : ActorMethod<[], SystemStats>,
+  'getUserFeedbackWithReplies' : ActorMethod<[], Array<FeedbackForUser>>,
   'getUserProfile' : ActorMethod<[Principal], UserProfile>,
   'getUserProfileFromVault' : ActorMethod<[], UserProfile>,
+  'getUserStats' : ActorMethod<[Principal], UserStats>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isUserBlocked' : ActorMethod<[Principal], boolean>,
   'listAllUserProfiles' : ActorMethod<[], Array<UserProfile>>,
+  'listAllUsersWithPrincipals' : ActorMethod<[], Array<UserWithPrincipal>>,
+  'markFeedbackAsRead' : ActorMethod<[Principal, bigint], undefined>,
+  'markFeedbackAsResolved' : ActorMethod<[Principal, bigint], undefined>,
+  'recordLoginActivity' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setMaintenanceMode' : ActorMethod<[boolean], undefined>,
+  'setSystemAnnouncement' : ActorMethod<[[] | [string]], undefined>,
   'submitFeedbackEntry' : ActorMethod<[string, bigint], undefined>,
+  'unblockUser' : ActorMethod<[Principal], undefined>,
+  'updatePasswordEntryInVault' : ActorMethod<
+    [
+      string,
+      Username,
+      StrongPassword,
+      string,
+      string,
+      string,
+      string,
+      string,
+      Array<CustomField>,
+      [] | [ExternalBlob],
+      bigint,
+    ],
+    undefined
+  >,
   'updateUserProfileInVault' : ActorMethod<[string, Language], UserProfile>,
 }
 export declare const idlService: IDL.ServiceClass;
