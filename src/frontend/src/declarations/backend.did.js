@@ -20,13 +20,13 @@ export const _CaffeineStorageRefillResult = IDL.Record({
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
 export const Username = IDL.Text;
+export const ExternalBlob = IDL.Vec(IDL.Nat8);
 export const StrongPassword = IDL.Text;
 export const CustomField = IDL.Record({
   'value' : IDL.Text,
   'name' : IDL.Text,
   'fieldType' : IDL.Text,
 });
-export const ExternalBlob = IDL.Vec(IDL.Nat8);
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
@@ -144,6 +144,26 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addPasswordBatchToVault' : IDL.Func(
+      [
+        IDL.Vec(
+          IDL.Record({
+            'url' : IDL.Text,
+            'title' : IDL.Text,
+            'username' : Username,
+            'blob' : IDL.Opt(ExternalBlob),
+            'password' : StrongPassword,
+            'totp' : IDL.Text,
+            'email' : IDL.Text,
+            'customFields' : IDL.Vec(CustomField),
+            'notes' : IDL.Text,
+            'category' : IDL.Text,
+          })
+        ),
+      ],
+      [IDL.Record({ 'imported' : IDL.Nat, 'skipped' : IDL.Nat })],
+      [],
+    ),
   'addPasswordEntryToVault' : IDL.Func(
       [
         IDL.Text,
@@ -266,13 +286,13 @@ export const idlFactory = ({ IDL }) => {
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
   const Username = IDL.Text;
+  const ExternalBlob = IDL.Vec(IDL.Nat8);
   const StrongPassword = IDL.Text;
   const CustomField = IDL.Record({
     'value' : IDL.Text,
     'name' : IDL.Text,
     'fieldType' : IDL.Text,
   });
-  const ExternalBlob = IDL.Vec(IDL.Nat8);
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
@@ -387,6 +407,26 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addPasswordBatchToVault' : IDL.Func(
+        [
+          IDL.Vec(
+            IDL.Record({
+              'url' : IDL.Text,
+              'title' : IDL.Text,
+              'username' : Username,
+              'blob' : IDL.Opt(ExternalBlob),
+              'password' : StrongPassword,
+              'totp' : IDL.Text,
+              'email' : IDL.Text,
+              'customFields' : IDL.Vec(CustomField),
+              'notes' : IDL.Text,
+              'category' : IDL.Text,
+            })
+          ),
+        ],
+        [IDL.Record({ 'imported' : IDL.Nat, 'skipped' : IDL.Nat })],
+        [],
+      ),
     'addPasswordEntryToVault' : IDL.Func(
         [
           IDL.Text,

@@ -110,6 +110,21 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
+    addPasswordBatchToVault(entries: Array<{
+        url: string;
+        title: string;
+        username: Username;
+        blob?: ExternalBlob;
+        password: StrongPassword;
+        totp: string;
+        email: string;
+        customFields: Array<CustomField>;
+        notes: string;
+        category: string;
+    }>): Promise<{
+        imported: bigint;
+        skipped: bigint;
+    }>;
     addPasswordEntryToVault(title: string, username: Username, password: StrongPassword, url: string, notes: string, email: string, category: string, totp: string, customFields: Array<CustomField>, blob: ExternalBlob | null): Promise<void>;
     addSecureNoteToVault(title: string, content: string, blob: ExternalBlob | null): Promise<void>;
     adminDeleteFeedback(user: Principal, feedbackId: bigint): Promise<void>;

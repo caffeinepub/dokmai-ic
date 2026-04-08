@@ -367,6 +367,64 @@ actor {
     };
   };
 
+  // Batch import: insert multiple password entries in a single call.
+  // Skips entries whose title already exists (no overwrite). Returns counts.
+  public shared ({ caller }) func addPasswordBatchToVault(
+    entries : [{
+      title : Text;
+      username : Username;
+      password : StrongPassword;
+      url : Text;
+      notes : Text;
+      email : Text;
+      category : Text;
+      totp : Text;
+      customFields : [CustomField];
+      blob : ?Storage.ExternalBlob;
+    }]
+  ) : async { imported : Nat; skipped : Nat } {
+    if (caller.isAnonymous()) { Runtime.trap("Unauthorized: Only users can import password entries") };
+    // Auto-register user if not yet known
+    AccessControl.ensureRegistered(accessControlState, caller);
+    userIdSet.add(caller);
+    ensurePasswordVaults();
+
+    // Get or create the vault for this caller
+    let vault : PasswordVault = switch (passwordVaultsV2.get(caller)) {
+      case (?v) { v };
+      case (null) { { entries = []; notes = []; profile = { name = "New User"; language = #en } } };
+    };
+
+    var existingEntries = vault.entries;
+    var imported : Nat = 0;
+    var skipped : Nat = 0;
+
+    for (entry in entries.vals()) {
+      let isDuplicate = existingEntries.find(func(e : PasswordEntry) : Bool { e.title == entry.title }) != null;
+      if (isDuplicate) {
+        skipped += 1;
+      } else {
+        let newEntry : PasswordEntry = {
+          title = entry.title;
+          username = entry.username;
+          password = entry.password;
+          url = entry.url;
+          notes = entry.notes;
+          email = entry.email;
+          category = entry.category;
+          totp = entry.totp;
+          customFields = entry.customFields;
+          blob = entry.blob;
+        };
+        existingEntries := existingEntries.concat([newEntry]);
+        imported += 1;
+      };
+    };
+
+    passwordVaultsV2.add(caller, { entries = existingEntries; notes = vault.notes; profile = vault.profile });
+    { imported; skipped };
+  };
+
   public query ({ caller }) func getPasswordEntryFromVault(title : Text) : async PasswordEntry {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can retrieve password entries");

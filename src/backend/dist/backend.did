@@ -131,6 +131,23 @@ service : {
    opt _CaffeineStorageRefillInformation) -> (_CaffeineStorageRefillResult);
   _caffeineStorageUpdateGatewayPrincipals: () -> ();
   _initializeAccessControlWithSecret: (userSecret: text) -> ();
+  addPasswordBatchToVault: (entries:
+   vec
+    record {
+      "blob": opt ExternalBlob;
+      category: text;
+      customFields: vec CustomField;
+      email: text;
+      notes: text;
+      password: StrongPassword;
+      title: text;
+      totp: text;
+      url: text;
+      username: Username;
+    }) -> (record {
+             imported: nat;
+             skipped: nat;
+           });
   addPasswordEntryToVault: (title: text, username: Username, password:
    StrongPassword, url: text, notes: text, email: text, category: text, totp:
    text, customFields: vec CustomField, "blob": opt ExternalBlob) -> ();

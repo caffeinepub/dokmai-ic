@@ -119,6 +119,25 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addPasswordBatchToVault' : ActorMethod<
+    [
+      Array<
+        {
+          'url' : string,
+          'title' : string,
+          'username' : Username,
+          'blob' : [] | [ExternalBlob],
+          'password' : StrongPassword,
+          'totp' : string,
+          'email' : string,
+          'customFields' : Array<CustomField>,
+          'notes' : string,
+          'category' : string,
+        }
+      >,
+    ],
+    { 'imported' : bigint, 'skipped' : bigint }
+  >,
   'addPasswordEntryToVault' : ActorMethod<
     [
       string,

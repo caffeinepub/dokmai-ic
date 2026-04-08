@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Check,
@@ -50,7 +49,7 @@ import {
 } from "../contexts/LanguageContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
-  useAddPassword,
+  useBatchImportPasswords,
   usePasswordEntries,
   useSecureNotes,
   useUpdateUserProfile,
@@ -68,8 +67,7 @@ export default function SettingsPage() {
     useUpdateUserProfile();
   const { data: passwords } = usePasswordEntries();
   const { data: notes } = useSecureNotes();
-  const { mutateAsync: addPasswordAsync } = useAddPassword();
-  const qc = useQueryClient();
+  const { mutateAsync: batchImportAsync } = useBatchImportPasswords();
   const navigate = useNavigate();
 
   const principal = identity?.getPrincipal().toText() ?? "";
@@ -129,25 +127,35 @@ export default function SettingsPage() {
   };
 
   const handleCsvImport = async (entries: ParsedEntry[]) => {
-    for (const entry of entries) {
-      try {
-        await addPasswordAsync({
-          title: entry.title,
-          username: entry.username,
-          password: entry.password,
-          url: entry.url,
-          notes: entry.notes,
-          email: "",
-          category: "",
-          totp: "",
-          customFields: [],
-        });
-      } catch (err) {
-        console.error("CSV import entry failed:", entry.title, err);
+    const batch = entries.map((entry) => ({
+      title: entry.title,
+      username: entry.username,
+      password: entry.password,
+      url: entry.url,
+      notes: entry.notes,
+      email: "",
+      category: "",
+      totp: "",
+      customFields: [],
+    }));
+    setShowCsvImport(false);
+    try {
+      const result = await batchImportAsync(batch);
+      const imported = Number(result?.imported ?? entries.length);
+      const skipped = Number(result?.skipped ?? 0);
+      if (skipped > 0) {
+        toast.success(
+          `Import complete — ${imported} passwords added (${skipped} skipped as duplicates)`,
+        );
+      } else {
+        toast.success(`Import complete — ${imported} passwords added`);
       }
+      navigate({ to: "/passwords" });
+    } catch (err) {
+      toast.error(
+        `Import failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
     }
-    await qc.invalidateQueries({ queryKey: ["passwords"] });
-    await qc.refetchQueries({ queryKey: ["passwords"] });
   };
 
   const handleJsonExport = async () => {
@@ -492,11 +500,6 @@ export default function SettingsPage() {
           onClose={() => setShowCsvImport(false)}
           existingTitles={existingTitles}
           onImport={handleCsvImport}
-          onComplete={(count) => {
-            setShowCsvImport(false);
-            toast.success(`Import complete — ${count} passwords added`);
-            navigate({ to: "/passwords" });
-          }}
         />
         <CsvExportModal
           open={showCsvExport}

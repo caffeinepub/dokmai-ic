@@ -309,6 +309,70 @@ export function useAdminReplyFeedback() {
   });
 }
 
+export interface BatchPasswordEntry {
+  title: string;
+  username: string;
+  password: string;
+  url: string;
+  notes: string;
+  email: string;
+  category: string;
+  totp: string;
+  customFields: CustomField[];
+}
+
+export interface BatchImportResult {
+  imported: bigint;
+  skipped: bigint;
+}
+
+export function useBatchImportPasswords() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      entries: BatchPasswordEntry[],
+    ): Promise<BatchImportResult> => {
+      if (!actor) throw new Error("Actor not ready");
+      // Try backend batch function first (added in parallel backend task)
+      // Falls back to concurrent parallel calls if batch method not available
+      if (typeof (actor as any).addPasswordBatchToVault === "function") {
+        const result = await (actor as any).addPasswordBatchToVault(entries);
+        return result as BatchImportResult;
+      }
+      // Fallback: run all entries concurrently in chunks of 10
+      const CHUNK = 10;
+      let imported = 0;
+      let skipped = 0;
+      for (let i = 0; i < entries.length; i += CHUNK) {
+        const chunk = entries.slice(i, i + CHUNK);
+        const results = await Promise.allSettled(
+          chunk.map((e) =>
+            (actor as any).addPasswordEntryToVault(
+              e.title,
+              e.username,
+              e.password,
+              e.url,
+              e.notes,
+              e.email,
+              e.category,
+              e.totp,
+              e.customFields,
+              null,
+            ),
+          ),
+        );
+        for (const r of results) {
+          if (r.status === "fulfilled") imported++;
+          else skipped++;
+        }
+      }
+      return { imported: BigInt(imported), skipped: BigInt(skipped) };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["passwords"] }),
+  });
+}
+
 export function useAddPassword() {
   const { actor } = useActor();
   const qc = useQueryClient();

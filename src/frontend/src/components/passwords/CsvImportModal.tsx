@@ -25,6 +25,7 @@ export interface ParsedEntry {
   password: string;
   url: string;
   notes: string;
+  category: string;
   isDuplicate: boolean;
   action: "import" | "skip" | "overwrite";
 }
@@ -40,16 +41,52 @@ interface CsvImportModalProps {
 
 type Step = "upload" | "preview" | "importing" | "done";
 
+/**
+ * Parse a full CSV text into rows.
+ * Handles multiline quoted fields correctly — a newline inside "..." is part
+ * of the field value, not a row boundary.
+ * Strips BOM and normalises all line endings before scanning.
+ */
 function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  if (lines.length < 2) return [];
+  // Strip UTF-8 BOM if present (NordPass exports include it)
+  const stripped = text.startsWith("\uFEFF") ? text.slice(1) : text;
+  // Normalise ALL line endings to \n
+  const normalized = stripped.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  const headerLine = lines[0];
-  const headers = parseCSVLine(headerLine).map((h) => h.trim().toLowerCase());
+  // Split into logical rows, respecting quoted multiline fields
+  const logicalLines: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (ch === '"') {
+      // Escaped quote ("") inside a quoted field
+      if (inQuotes && normalized[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+        current += ch;
+      }
+    } else if (ch === "\n" && !inQuotes) {
+      logicalLines.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current) logicalLines.push(current);
+
+  // Need at least a header row — return empty array only if no lines at all
+  if (logicalLines.length === 0) return [];
+
+  const headers = parseCSVLine(logicalLines[0]).map((h) =>
+    h.trim().toLowerCase(),
+  );
 
   const rows: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
+  for (let i = 1; i < logicalLines.length; i++) {
+    const line = logicalLines[i].trim();
     if (!line) continue;
     const values = parseCSVLine(line);
     const row: Record<string, string> = {};
@@ -85,15 +122,40 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-function detectFormat(headers: string[]): {
+interface ColumnMapping {
   title: string;
   username: string;
   password: string;
   url: string;
   notes: string;
-} {
-  const h = headers.map((x) => x.toLowerCase());
+  category: string;
+  /** When true, parseEntries will filter rows where type !== 'login' */
+  isNordpass: boolean;
+}
 
+function detectFormat(headers: string[]): ColumnMapping {
+  // Normalise to lowercase for all comparisons
+  const h = headers.map((x) => x.trim().toLowerCase());
+
+  // NordPass: identified by 'additional_urls' (unique to NordPass) plus either
+  // 'cardholdername' or 'type' — accept either so partial exports still match.
+  // NordPass notes column is "note" (singular), NOT "notes".
+  if (
+    h.includes("additional_urls") &&
+    (h.includes("cardholdername") || h.includes("type"))
+  ) {
+    return {
+      title: "name",
+      username: "username",
+      password: "password",
+      url: "url",
+      notes: "note",
+      category: "folder",
+      isNordpass: true,
+    };
+  }
+
+  // Bitwarden: login_username / login_password
   if (h.includes("login_username") || h.includes("login_password")) {
     return {
       title: h.includes("name") ? "name" : h[0],
@@ -101,9 +163,12 @@ function detectFormat(headers: string[]): {
       password: "login_password",
       url: h.includes("login_uri") ? "login_uri" : "login_url",
       notes: h.includes("notes") ? "notes" : "",
+      category: "",
+      isNordpass: false,
     };
   }
 
+  // LastPass / Chrome / Generic with name+username+password
   if (h.includes("username") && h.includes("password") && h.includes("name")) {
     return {
       title: "name",
@@ -111,9 +176,18 @@ function detectFormat(headers: string[]): {
       password: "password",
       url: h.includes("url") ? "url" : "",
       notes: h.includes("extra") ? "extra" : h.includes("notes") ? "notes" : "",
+      category: h.includes("grouping")
+        ? "grouping"
+        : h.includes("group")
+          ? "group"
+          : h.includes("folder")
+            ? "folder"
+            : "",
+      isNordpass: false,
     };
   }
 
+  // Fully generic fallback
   const titleCol =
     h.find((x) => x === "title") ||
     h.find((x) => x === "name") ||
@@ -149,25 +223,53 @@ function detectFormat(headers: string[]): {
     password: passwordCol,
     url: urlCol,
     notes: notesCol,
+    category: "",
+    isNordpass: false,
   };
 }
 
 function parseEntries(
   rows: Record<string, string>[],
   existingTitles: string[],
-): ParsedEntry[] {
-  if (rows.length === 0) return [];
+): { entries: ParsedEntry[]; skippedNonLogin: number; isNordpass: boolean } {
+  if (rows.length === 0)
+    return { entries: [], skippedNonLogin: 0, isNordpass: false };
   const headers = Object.keys(rows[0]);
   const mapping = detectFormat(headers);
   const existingSet = new Set(existingTitles.map((t) => t.toLowerCase()));
 
-  return rows
+  // For NordPass: filter to login entries only — other types (card, identity,
+  // secure note) are intentionally excluded from the password vault.
+  let filteredRows = rows;
+  let skippedNonLogin = 0;
+  if (mapping.isNordpass) {
+    const loginRows = rows.filter((r) => {
+      const typeVal = (r.type ?? "").trim().toLowerCase();
+      return typeVal === "password" || typeVal === "login";
+    });
+    skippedNonLogin = rows.length - loginRows.length;
+    if (skippedNonLogin > 0) {
+      console.warn(
+        `[NordPass import] Skipped ${skippedNonLogin} non-login entries (cards, identities, notes).`,
+      );
+    }
+    filteredRows = loginRows;
+    // Return empty array gracefully — handleFile() will show a specific message
+    if (filteredRows.length === 0) {
+      return { entries: [], skippedNonLogin, isNordpass: true };
+    }
+  }
+
+  const entries = filteredRows
     .map((row) => {
       const title = (row[mapping.title] ?? "").trim();
       const username = (row[mapping.username] ?? "").trim();
       const password = (row[mapping.password] ?? "").trim();
       const url = (row[mapping.url] ?? "").trim();
       const notes = mapping.notes ? (row[mapping.notes] ?? "").trim() : "";
+      const category = mapping.category
+        ? (row[mapping.category] ?? "").trim()
+        : "";
       if (!title && !password) return null;
       const isDuplicate = existingSet.has(title.toLowerCase());
       return {
@@ -176,11 +278,14 @@ function parseEntries(
         password,
         url,
         notes,
+        category,
         isDuplicate,
         action: (isDuplicate ? "skip" : "import") as ParsedEntry["action"],
       };
     })
     .filter(Boolean) as ParsedEntry[];
+
+  return { entries, skippedNonLogin, isNordpass: mapping.isNordpass };
 }
 
 export function CsvImportModal({
@@ -200,6 +305,7 @@ export function CsvImportModal({
   const [progress, setProgress] = useState(0);
   const [importedCount, setImportedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
+  const [skippedNonLogin, setSkippedNonLogin] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(
@@ -216,18 +322,31 @@ export function CsvImportModal({
           const text = e.target?.result as string;
           const rows = parseCSV(text);
           if (rows.length === 0) {
+            // File is empty or could not be read as CSV
             setParseError(t.csvImportInvalid);
             return;
           }
-          const parsed = parseEntries(rows, existingTitles);
+          const {
+            entries: parsed,
+            skippedNonLogin: nonLogin,
+            isNordpass,
+          } = parseEntries(rows, existingTitles);
           if (parsed.length === 0) {
-            setParseError(t.csvImportInvalid);
+            if (isNordpass) {
+              setParseError(
+                "No password entries found. Make sure your NordPass export contains password-type entries.",
+              );
+            } else {
+              setParseError(t.csvImportInvalid);
+            }
             return;
           }
           setEntries(parsed);
           setChecked(parsed.map(() => true));
+          setSkippedNonLogin(nonLogin);
           setStep("preview");
-        } catch {
+        } catch (err) {
+          console.error("[CSV import] Unexpected parse error:", err);
           setParseError(t.csvImportInvalid);
         }
       };
@@ -277,33 +396,25 @@ export function CsvImportModal({
       (e, i) => checked[i] && e.action !== "skip",
     );
     const total = toImport.length;
+    const skippedCount =
+      entries.length -
+      entries.filter((e, i) => checked[i] && e.action !== "skip").length;
     if (total === 0) {
-      const skipped = entries.filter(
-        (e, i) => !checked[i] || e.action === "skip",
-      ).length;
       setImportedCount(0);
-      setSkippedCount(skipped);
+      setSkippedCount(skippedCount);
       setStep("done");
       return;
     }
     setStep("importing");
-    setProgress(0);
-    let imported = 0;
-    for (const entry of toImport) {
-      try {
-        await onImport([entry]);
-      } catch {
-        // continue on error
-      }
-      imported++;
-      setProgress(Math.round((imported / total) * 100));
-      await new Promise((r) => setTimeout(r, 50));
+    setProgress(10);
+    try {
+      await onImport(toImport);
+      setProgress(100);
+    } catch {
+      // continue — onImport handles error display
     }
-    const skipped =
-      entries.length -
-      entries.filter((e, i) => checked[i] && e.action !== "skip").length;
-    setImportedCount(imported);
-    setSkippedCount(skipped);
+    setImportedCount(total);
+    setSkippedCount(skippedCount);
     setStep("done");
   };
 
@@ -316,6 +427,7 @@ export function CsvImportModal({
     setProgress(0);
     setImportedCount(0);
     setSkippedCount(0);
+    setSkippedNonLogin(0);
     setSearchQuery("");
   };
 
@@ -463,6 +575,19 @@ export function CsvImportModal({
                       {duplicateCount} {t.csvImportDuplicates}
                     </span>
                   </span>
+                  {skippedNonLogin > 0 && (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{
+                        background: "rgba(148,163,184,0.08)",
+                        color: "#94a3b8",
+                        border: "1px solid rgba(148,163,184,0.2)",
+                      }}
+                      title="Cards, identities, and secure notes from NordPass were excluded — only login entries are imported"
+                    >
+                      {skippedNonLogin} non-login skipped
+                    </span>
+                  )}
                   <span
                     className="text-xs px-2 py-0.5 rounded-full"
                     style={{

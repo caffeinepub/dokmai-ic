@@ -8,15 +8,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ArrowLeft,
   Download,
-  Eye,
+  Edit2,
   FileText,
   Loader2,
   Paperclip,
   Plus,
+  Save,
+  Search,
+  Shield,
   Trash2,
   Upload,
   X,
@@ -44,14 +47,30 @@ export default function VaultPage() {
   const { t } = useLanguage();
   const { data: notes = [], isLoading } = useSecureNotes();
   const { mutate: addNote, isPending: isAdding } = useAddSecureNote();
-  const { mutate: deleteNote } = useDeleteSecureNote();
+  const { mutate: deleteNote, isPending: isDeleting } = useDeleteSecureNote();
 
+  // Panel state
+  const [selectedNote, setSelectedNote] = useState<SecureNote | null>(null);
+  const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Add note dialog
   const [showAdd, setShowAdd] = useState(false);
-  const [viewNote, setViewNote] = useState<SecureNote | null>(null);
   const [newNote, setNewNote] = useState({ title: "", content: "" });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+
+  const filteredNotes = notes.filter(
+    (n) =>
+      n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.content.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   const resetAddForm = () => {
     setNewNote({ title: "", content: "" });
@@ -95,7 +114,6 @@ export default function VaultPage() {
       toast.error(
         `File too large. Maximum size is 10 MB (your file: ${formatFileSize(file.size)})`,
       );
-      // reset input
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -107,9 +125,69 @@ export default function VaultPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleSelectNote = (note: SecureNote) => {
+    setSelectedNote(note);
+    setIsEditing(false);
+    setMobileShowDetail(true);
+  };
+
+  const handleDeleteNote = (note: SecureNote) => {
+    deleteNote(note.title, {
+      onSuccess: () => {
+        toast.success("Note deleted");
+        if (selectedNote?.title === note.title) {
+          setSelectedNote(null);
+          setMobileShowDetail(false);
+        }
+      },
+      onError: (err) => toast.error(err.message),
+    });
+  };
+
+  const handleStartEdit = () => {
+    if (!selectedNote) return;
+    setEditTitle(selectedNote.title);
+    setEditContent(selectedNote.content);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = () => {
+    // Note: backend doesn't have updateSecureNote — we delete + re-add
+    if (!selectedNote) return;
+    deleteNote(selectedNote.title, {
+      onSuccess: () => {
+        addNote(
+          {
+            title: editTitle,
+            content: editContent,
+            file: null,
+          },
+          {
+            onSuccess: () => {
+              toast.success("Note updated!");
+              setSelectedNote({
+                ...selectedNote,
+                title: editTitle,
+                content: editContent,
+              });
+              setIsEditing(false);
+            },
+            onError: (e) => toast.error(`Save failed: ${e.message}`),
+          },
+        );
+      },
+      onError: (e) => toast.error(`Update failed: ${e.message}`),
+    });
+  };
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full gap-0" style={{ minHeight: 0 }}>
+      {/* Page header */}
+      <div className="flex items-center justify-between px-1 pb-4 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#EAF2FF" }}>
             {t.vaultTitle}
@@ -120,200 +198,378 @@ export default function VaultPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="notes">
-        <TabsList
-          className="mb-4"
-          style={{ background: "#0D1F3A", border: "1px solid #1A3354" }}
+      {/* 2-panel layout */}
+      <div
+        className="flex flex-1 rounded-2xl overflow-hidden"
+        style={{
+          background: "rgba(13,31,58,0.5)",
+          border: "1px solid rgba(26,51,84,0.8)",
+          minHeight: 0,
+        }}
+      >
+        {/* LEFT PANEL — List */}
+        <div
+          className={`flex flex-col flex-shrink-0 ${mobileShowDetail ? "hidden md:flex" : "flex"} w-full md:w-80`}
+          style={{ borderRight: "1px solid rgba(255,255,255,0.06)" }}
         >
-          <TabsTrigger
-            data-ocid="vault.notes.tab"
-            value="notes"
-            style={{ color: "#9BB0C9" }}
+          {/* List header */}
+          <div
+            className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
           >
-            <FileText size={14} className="mr-1" />
-            {t.vaultNotes} ({notes.length})
-          </TabsTrigger>
-          <TabsTrigger
-            data-ocid="vault.files.tab"
-            value="files"
-            style={{ color: "#9BB0C9" }}
-          >
-            Files
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="notes">
-          <div className="flex justify-end mb-3">
-            <Button
+            <span
+              className="text-xs font-semibold tracking-widest uppercase"
+              style={{ color: "#9BB0C9" }}
+            >
+              Notes ({filteredNotes.length})
+            </span>
+            <button
+              type="button"
               data-ocid="vault.add_note.primary_button"
               onClick={() => setShowAdd(true)}
-              className="rounded-full text-sm h-9 font-semibold"
-              style={{ background: "#22D3EE", color: "#071427" }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                background: "rgba(168,85,247,0.18)",
+                color: "#C084FC",
+                border: "1px solid rgba(168,85,247,0.35)",
+              }}
             >
-              <Plus size={14} className="mr-1" />
+              <Plus size={12} />
               {t.vaultAddNote}
-            </Button>
+            </button>
           </div>
 
-          {isLoading ? (
-            <div
-              className="flex items-center gap-2 py-8"
-              data-ocid="vault.loading_state"
-            >
-              <Loader2
-                className="animate-spin"
-                size={18}
-                style={{ color: "#22D3EE" }}
+          {/* Search */}
+          <div
+            className="px-3 py-2.5 flex-shrink-0"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+          >
+            <div className="relative">
+              <Search
+                size={13}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2"
+                style={{ color: "#4A6480" }}
               />
-              <span style={{ color: "#9BB0C9" }}>{t.loading}</span>
-            </div>
-          ) : notes.length === 0 ? (
-            <div
-              className="text-center py-16"
-              data-ocid="vault.notes.empty_state"
-            >
-              <FileText
-                size={40}
-                className="mx-auto mb-3 opacity-30"
-                style={{ color: "#A855F7" }}
+              <input
+                data-ocid="vault.search.input"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search notes..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none transition-all"
+                style={{
+                  background: "rgba(7,20,39,0.7)",
+                  border: "1px solid rgba(26,51,84,0.8)",
+                  color: "#EAF2FF",
+                }}
               />
-              <p style={{ color: "#9BB0C9" }}>{t.noData}</p>
             </div>
-          ) : (
-            <AnimatePresence mode="popLayout">
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                {notes.map((note, i) => (
-                  <motion.div
-                    key={note.title}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    data-ocid={`vault.notes.item.${i + 1}`}
-                    className="card-gradient-border p-4"
-                    style={{
-                      boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
-                      cursor: "pointer",
-                    }}
-                    onClick={() => setViewNote(note)}
+          </div>
+
+          {/* Note list */}
+          <div className="flex-1 overflow-y-auto">
+            {isLoading ? (
+              <div
+                className="flex items-center gap-2 px-4 py-8"
+                data-ocid="vault.loading_state"
+              >
+                <Loader2
+                  className="animate-spin"
+                  size={16}
+                  style={{ color: "#A855F7" }}
+                />
+                <span className="text-sm" style={{ color: "#9BB0C9" }}>
+                  {t.loading}
+                </span>
+              </div>
+            ) : filteredNotes.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center py-12 px-4 text-center"
+                data-ocid="vault.notes.empty_state"
+              >
+                <FileText
+                  size={32}
+                  className="mb-3 opacity-25"
+                  style={{ color: "#A855F7" }}
+                />
+                <p className="text-sm" style={{ color: "#9BB0C9" }}>
+                  {searchQuery ? "No notes match your search" : t.noData}
+                </p>
+                {!searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAdd(true)}
+                    className="mt-3 text-xs underline underline-offset-2"
+                    style={{ color: "#A855F7" }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{
-                            background: "rgba(168,85,247,0.12)",
-                            border: "1px solid rgba(168,85,247,0.2)",
-                          }}
-                        >
-                          <FileText size={14} style={{ color: "#A855F7" }} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
+                    Create your first note
+                  </button>
+                )}
+              </div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {filteredNotes.map((note, i) => {
+                  const isActive = selectedNote?.title === note.title;
+                  return (
+                    <motion.button
+                      key={note.title}
+                      type="button"
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      transition={{ delay: i * 0.04 }}
+                      data-ocid={`vault.notes.item.${i + 1}`}
+                      onClick={() => handleSelectNote(note)}
+                      className="w-full text-left px-4 py-3 transition-all relative"
+                      style={{
+                        background: isActive
+                          ? "rgba(168,85,247,0.1)"
+                          : "transparent",
+                        borderLeft: isActive
+                          ? "3px solid #A855F7"
+                          : "3px solid transparent",
+                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-0.5">
                             <p
-                              className="text-sm font-semibold"
-                              style={{ color: "#EAF2FF" }}
+                              className="text-sm font-semibold truncate"
+                              style={{
+                                color: isActive ? "#C084FC" : "#EAF2FF",
+                              }}
                             >
                               {note.title}
                             </p>
                             {note.blob && (
-                              <span
-                                className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full"
-                                style={{
-                                  background: "rgba(34,211,238,0.1)",
-                                  border: "1px solid rgba(34,211,238,0.25)",
-                                  color: "#22D3EE",
-                                }}
-                              >
-                                <Paperclip size={9} />
-                                attachment
-                              </span>
+                              <Paperclip
+                                size={10}
+                                className="flex-shrink-0"
+                                style={{ color: "#22D3EE" }}
+                              />
                             )}
                           </div>
                           <p
-                            className="text-xs truncate max-w-48"
-                            style={{ color: "#9BB0C9" }}
+                            className="text-xs line-clamp-2 leading-relaxed"
+                            style={{ color: "#6B8BA8" }}
                           >
-                            {note.content.slice(0, 60)}
-                            {note.content.length > 60 ? "..." : ""}
+                            {note.content.slice(0, 80)}
+                            {note.content.length > 80 ? "…" : ""}
                           </p>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setViewNote(note);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-white/5"
-                          style={{ color: "#9BB0C9" }}
-                          aria-label="View note"
-                        >
-                          <Eye size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNote(note.title, {
-                              onSuccess: () => toast.success("Note deleted"),
-                              onError: (err) => toast.error(err.message),
-                            });
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-red-500/10"
-                          style={{ color: "#9BB0C9" }}
-                          data-ocid={`vault.notes.delete_button.${i + 1}`}
-                          aria-label="Delete note"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </AnimatePresence>
-          )}
-        </TabsContent>
-
-        <TabsContent value="files">
-          <div
-            className="text-center py-16 rounded-2xl"
-            data-ocid="vault.files.empty_state"
-            style={{
-              background: "rgba(13,31,58,0.5)",
-              border: "1px dashed #1A3354",
-            }}
-          >
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3"
-              style={{
-                background: "rgba(34,211,238,0.08)",
-                border: "1px solid rgba(34,211,238,0.15)",
-              }}
-            >
-              <FileText size={22} style={{ color: "#22D3EE" }} />
-            </div>
-            <p className="font-medium" style={{ color: "#EAF2FF" }}>
-              File storage
-            </p>
-            <p className="text-sm mt-1" style={{ color: "#9BB0C9" }}>
-              Secure file uploads powered by blob storage
-            </p>
-            <Button
-              data-ocid="vault.upload_button"
-              className="mt-4 rounded-full text-sm h-9"
-              style={{
-                background: "transparent",
-                border: "1px solid rgba(34,211,238,0.3)",
-                color: "#22D3EE",
-              }}
-            >
-              {t.vaultUploadFile}
-            </Button>
+                    </motion.button>
+                  );
+                })}
+              </AnimatePresence>
+            )}
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+
+        {/* RIGHT PANEL — Detail */}
+        <div
+          className={`flex-1 flex flex-col min-w-0 ${!mobileShowDetail ? "hidden md:flex" : "flex"}`}
+        >
+          {/* Mobile back button */}
+          {mobileShowDetail && (
+            <div
+              className="flex md:hidden items-center px-4 py-3 flex-shrink-0"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileShowDetail(false);
+                  setIsEditing(false);
+                }}
+                className="flex items-center gap-1.5 text-sm"
+                style={{ color: "#9BB0C9" }}
+              >
+                <ArrowLeft size={15} />
+                Back to list
+              </button>
+            </div>
+          )}
+
+          {!selectedNote ? (
+            /* Empty state */
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                style={{
+                  background: "rgba(168,85,247,0.08)",
+                  border: "1px solid rgba(168,85,247,0.15)",
+                }}
+              >
+                <Shield size={28} style={{ color: "rgba(168,85,247,0.5)" }} />
+              </div>
+              <p className="font-medium mb-1" style={{ color: "#EAF2FF" }}>
+                Select a note to view details
+              </p>
+              <p className="text-sm" style={{ color: "#6B8BA8" }}>
+                Your encrypted notes are stored securely on-chain
+              </p>
+            </div>
+          ) : (
+            /* Note detail */
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Detail header */}
+              <div
+                className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: "rgba(168,85,247,0.12)",
+                      border: "1px solid rgba(168,85,247,0.2)",
+                    }}
+                  >
+                    <FileText size={16} style={{ color: "#A855F7" }} />
+                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="text-lg font-bold bg-transparent outline-none border-b min-w-0"
+                      style={{
+                        color: "#EAF2FF",
+                        borderColor: "rgba(168,85,247,0.5)",
+                        width: "100%",
+                      }}
+                    />
+                  ) : (
+                    <h2
+                      className="text-lg font-bold truncate"
+                      style={{ color: "#EAF2FF" }}
+                    >
+                      {selectedNote.title}
+                    </h2>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                  {isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all hover:bg-white/5"
+                        style={{
+                          color: "#9BB0C9",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <X size={12} />
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEdit}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+                        style={{
+                          background: "rgba(168,85,247,0.2)",
+                          color: "#C084FC",
+                          border: "1px solid rgba(168,85,247,0.35)",
+                        }}
+                      >
+                        <Save size={12} />
+                        Save
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        data-ocid="vault.detail.edit_button"
+                        onClick={handleStartEdit}
+                        className="p-2 rounded-lg transition-all hover:bg-white/5"
+                        style={{ color: "#9BB0C9" }}
+                        aria-label="Edit note"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        data-ocid="vault.notes.delete_button"
+                        onClick={() => handleDeleteNote(selectedNote)}
+                        disabled={isDeleting}
+                        className="p-2 rounded-lg transition-all hover:bg-red-500/10"
+                        style={{ color: "#9BB0C9" }}
+                        aria-label="Delete note"
+                      >
+                        {isDeleting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Note content */}
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                {isEditing ? (
+                  <Textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={14}
+                    className="w-full resize-none text-sm leading-relaxed"
+                    style={{
+                      background: "rgba(7,20,39,0.6)",
+                      border: "1px solid rgba(168,85,247,0.25)",
+                      color: "#EAF2FF",
+                    }}
+                  />
+                ) : (
+                  <p
+                    className="text-sm leading-relaxed whitespace-pre-wrap"
+                    style={{ color: "#CBD5E1" }}
+                  >
+                    {selectedNote.content}
+                  </p>
+                )}
+
+                {/* Attachment */}
+                {selectedNote.blob && !isEditing && (
+                  <div
+                    className="mt-6 pt-5"
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                  >
+                    <p
+                      className="text-xs font-semibold uppercase tracking-wider mb-2"
+                      style={{ color: "#6B8BA8" }}
+                    >
+                      Attachment
+                    </p>
+                    <a
+                      href={selectedNote.blob.getDirectURL()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-ocid="vault.view_note.secondary_button"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                      style={{
+                        background: "rgba(34,211,238,0.08)",
+                        border: "1px solid rgba(34,211,238,0.2)",
+                        color: "#22D3EE",
+                        textDecoration: "none",
+                      }}
+                    >
+                      <Download size={14} />
+                      Download Attachment
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Add Note Dialog */}
       <Dialog
@@ -455,7 +711,6 @@ export default function VaultPage() {
                 </button>
               )}
 
-              {/* Upload progress */}
               {uploadProgress !== null && (
                 <div className="mt-2" data-ocid="vault.add_note.loading_state">
                   <div className="flex items-center justify-between mb-1">
@@ -469,9 +724,7 @@ export default function VaultPage() {
                   <Progress
                     value={uploadProgress}
                     className="h-1.5"
-                    style={{
-                      background: "rgba(26,51,84,0.8)",
-                    }}
+                    style={{ background: "rgba(26,51,84,0.8)" }}
                   />
                 </div>
               )}
@@ -508,69 +761,6 @@ export default function VaultPage() {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Note Dialog */}
-      <Dialog open={!!viewNote} onOpenChange={() => setViewNote(null)}>
-        <DialogContent
-          data-ocid="vault.view_note.dialog"
-          style={{
-            background: "#0D1F3A",
-            border: "1px solid rgba(168,85,247,0.2)",
-            color: "#EAF2FF",
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle style={{ color: "#EAF2FF" }}>
-              {viewNote?.title}
-            </DialogTitle>
-          </DialogHeader>
-          <div
-            className="mt-2 p-4 rounded-xl text-sm whitespace-pre-wrap"
-            style={{
-              background: "#071427",
-              border: "1px solid #1A3354",
-              color: "#EAF2FF",
-              maxHeight: 300,
-              overflowY: "auto",
-            }}
-          >
-            {viewNote?.content}
-          </div>
-
-          {/* Download attachment if present */}
-          {viewNote?.blob && (
-            <a
-              href={viewNote.blob.getDirectURL()}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-ocid="vault.view_note.secondary_button"
-              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full text-sm font-medium transition-colors"
-              style={{
-                background: "rgba(34,211,238,0.08)",
-                border: "1px solid rgba(34,211,238,0.25)",
-                color: "#22D3EE",
-                textDecoration: "none",
-              }}
-            >
-              <Download size={14} />
-              Download Attachment
-            </a>
-          )}
-
-          <Button
-            data-ocid="vault.view_note.close_button"
-            onClick={() => setViewNote(null)}
-            className="rounded-full mt-1"
-            style={{
-              background: "transparent",
-              border: "1px solid #1A3354",
-              color: "#9BB0C9",
-            }}
-          >
-            {t.close}
-          </Button>
         </DialogContent>
       </Dialog>
     </div>
