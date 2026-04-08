@@ -8,18 +8,9 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   ArrowRight,
   CheckCircle2,
-  Eye,
-  EyeOff,
   FileUp,
-  Info,
   Loader2,
   SkipForward,
   Upload,
@@ -192,42 +183,6 @@ function parseEntries(
     .filter(Boolean) as ParsedEntry[];
 }
 
-/** Mask password — show dots or actual value */
-function PasswordCell({ value }: { value: string }) {
-  const [show, setShow] = useState(false);
-  if (!value) return <span style={{ color: "#4A6888" }}>—</span>;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span
-        style={{
-          fontFamily: show ? "inherit" : "monospace",
-          fontSize: 13,
-          color: "#9BB0C9",
-          letterSpacing: show ? 0 : 2,
-        }}
-      >
-        {show ? value : "••••••"}
-      </span>
-      <button
-        type="button"
-        onClick={() => setShow((v) => !v)}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "#4A6888",
-          padding: 0,
-          lineHeight: 0,
-          flexShrink: 0,
-        }}
-        aria-label={show ? "Hide password" : "Show password"}
-      >
-        {show ? <EyeOff size={12} /> : <Eye size={12} />}
-      </button>
-    </div>
-  );
-}
-
 export function CsvImportModal({
   open,
   onClose,
@@ -317,14 +272,6 @@ export function CsvImportModal({
     );
   };
 
-  const setEntryAction = (idx: number, action: ParsedEntry["action"]) => {
-    setEntries((prev) => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], action };
-      return next;
-    });
-  };
-
   const handleImport = async () => {
     const toImport = entries.filter(
       (e, i) => checked[i] && e.action !== "skip",
@@ -369,6 +316,7 @@ export function CsvImportModal({
     setProgress(0);
     setImportedCount(0);
     setSkippedCount(0);
+    setSearchQuery("");
   };
 
   const handleClose = () => {
@@ -383,669 +331,536 @@ export function CsvImportModal({
     onComplete?.(count);
   };
 
+  const [searchQuery, setSearchQuery] = useState("");
+
   const duplicateCount = entries.filter((e) => e.isDuplicate).length;
   const newCount = entries.length - duplicateCount;
   const selectedCount = checked.filter(Boolean).length;
 
+  const filteredEntries = searchQuery.trim()
+    ? entries
+        .map((entry, idx) => ({ entry, idx }))
+        .filter(({ entry }) => {
+          const q = searchQuery.toLowerCase();
+          return (
+            entry.title.toLowerCase().includes(q) ||
+            entry.username.toLowerCase().includes(q)
+          );
+        })
+    : entries.map((entry, idx) => ({ entry, idx }));
+
   return (
-    <TooltipProvider>
-      <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-        <DialogContent
-          data-ocid="csv_import.dialog"
-          className="w-[95vw] max-w-5xl p-0 overflow-hidden flex flex-col"
-          style={{
-            maxHeight: "92vh",
-            background: "#0D1F3A",
-            border: "1px solid rgba(34,211,238,0.2)",
-            color: "#EAF2FF",
-          }}
-        >
-          <DialogHeader className="p-6 pb-0 flex-shrink-0">
-            <DialogTitle
-              style={{ color: "#EAF2FF" }}
-              className="flex items-center gap-2"
-            >
-              <FileUp size={18} style={{ color: "#22D3EE" }} />
-              {t.csvImportTitle}
-            </DialogTitle>
-            <p className="text-sm mt-1" style={{ color: "#9BB0C9" }}>
-              {t.csvImportDesc}
-            </p>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent
+        data-ocid="csv_import.dialog"
+        className="w-[95vw] max-w-5xl p-0 overflow-hidden flex flex-col"
+        style={{
+          maxHeight: "92vh",
+          background: "#0D1F3A",
+          border: "1px solid rgba(34,211,238,0.2)",
+          color: "#EAF2FF",
+        }}
+      >
+        <DialogHeader className="p-6 pb-0 flex-shrink-0">
+          <DialogTitle
+            style={{ color: "#EAF2FF" }}
+            className="flex items-center gap-2"
+          >
+            <FileUp size={18} style={{ color: "#22D3EE" }} />
+            {t.csvImportTitle}
+          </DialogTitle>
+          <p className="text-sm mt-1" style={{ color: "#9BB0C9" }}>
+            {t.csvImportDesc}
+          </p>
+        </DialogHeader>
 
-          <div className="p-6 pt-4 flex-1 min-h-0 flex flex-col overflow-hidden">
-            {/* Step 1: Upload */}
-            {step === "upload" && (
-              <div className="flex flex-col gap-4">
-                <label
-                  data-ocid="csv_import.dropzone"
-                  htmlFor="csv-file-input"
-                  onDrop={handleDrop}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDragOver(true);
-                  }}
-                  onDragLeave={() => setIsDragOver(false)}
-                  className="cursor-pointer rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 py-12 transition-all"
-                  style={{
-                    borderColor: isDragOver
-                      ? "#22D3EE"
-                      : "rgba(34,211,238,0.25)",
-                    background: isDragOver
-                      ? "rgba(34,211,238,0.06)"
-                      : "rgba(34,211,238,0.02)",
-                  }}
-                >
-                  <Upload
-                    size={32}
-                    style={{
-                      color: isDragOver ? "#22D3EE" : "rgba(34,211,238,0.5)",
-                    }}
-                  />
-                  <p
-                    className="text-sm font-medium"
-                    style={{ color: isDragOver ? "#22D3EE" : "#9BB0C9" }}
-                  >
-                    {fileName ? fileName : t.csvImportDrop}
-                  </p>
-                  <input
-                    id="csv-file-input"
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="hidden"
-                    onChange={handleFileInput}
-                    data-ocid="csv_import.upload_button"
-                  />
-                </label>
-
-                {parseError && (
-                  <div
-                    data-ocid="csv_import.error_state"
-                    className="flex items-center gap-2 text-sm px-4 py-3 rounded-lg"
-                    style={{
-                      background: "rgba(239,68,68,0.08)",
-                      border: "1px solid rgba(239,68,68,0.3)",
-                      color: "#f87171",
-                    }}
-                  >
-                    <XCircle size={15} />
-                    {parseError}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    data-ocid="csv_import.cancel_button"
-                    variant="outline"
-                    onClick={handleClose}
-                    style={{
-                      background: "transparent",
-                      border: "1px solid #1A3354",
-                      color: "#9BB0C9",
-                    }}
-                  >
-                    {t.cancel}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Preview */}
-            {step === "preview" && (
-              <div className="flex flex-col gap-3 h-full overflow-hidden">
-                {/* Stats + bulk actions row */}
-                <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm" style={{ color: "#9BB0C9" }}>
-                      {entries.length} items —{" "}
-                      <span style={{ color: "#22D3EE" }}>{newCount} new</span>,{" "}
-                      <span style={{ color: "#fbbf24" }}>
-                        {duplicateCount} {t.csvImportDuplicates}
-                      </span>
-                    </span>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full"
-                      style={{
-                        background: "rgba(34,211,238,0.1)",
-                        color: "#22D3EE",
-                        border: "1px solid rgba(34,211,238,0.2)",
-                      }}
-                    >
-                      {selectedCount} selected
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={toggleAll}
-                      className="text-xs h-7"
-                      style={{
-                        background: allChecked
-                          ? "rgba(34,211,238,0.1)"
-                          : "transparent",
-                        border: "1px solid rgba(34,211,238,0.3)",
-                        color: "#22D3EE",
-                      }}
-                    >
-                      {allChecked ? "Deselect All" : "Select All"}
-                    </Button>
-                    {duplicateCount > 0 && (
-                      <>
-                        <Button
-                          data-ocid="csv_import.skip_all.button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setAllDuplicatesAction("skip")}
-                          className="text-xs h-7"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid rgba(251,191,36,0.3)",
-                            color: "#fbbf24",
-                          }}
-                        >
-                          <SkipForward size={12} className="mr-1" />
-                          {t.csvImportSkipAll}
-                        </Button>
-                        <Button
-                          data-ocid="csv_import.overwrite_all.button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setAllDuplicatesAction("overwrite")}
-                          className="text-xs h-7"
-                          style={{
-                            background: "transparent",
-                            border: "1px solid rgba(34,211,238,0.3)",
-                            color: "#22D3EE",
-                          }}
-                        >
-                          {t.csvImportOverwriteAll}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Scrollable table container */}
-                <div
-                  className="rounded-lg border flex-1 min-h-0"
-                  style={{
-                    borderColor: "#1A3354",
-                    overflow: "auto",
-                  }}
-                >
-                  <table
-                    style={{
-                      minWidth: "860px",
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      tableLayout: "auto",
-                    }}
-                  >
-                    <thead
-                      style={{
-                        position: "sticky",
-                        top: 0,
-                        zIndex: 10,
-                        background: "#071427",
-                      }}
-                    >
-                      <tr style={{ borderBottom: "1px solid #1A3354" }}>
-                        {/* Select checkbox header */}
-                        <th
-                          style={{
-                            width: 44,
-                            padding: "10px 12px",
-                            position: "sticky",
-                            left: 0,
-                            background: "#071427",
-                            zIndex: 11,
-                          }}
-                        >
-                          <Checkbox
-                            checked={allChecked}
-                            data-state={
-                              someChecked
-                                ? "indeterminate"
-                                : allChecked
-                                  ? "checked"
-                                  : "unchecked"
-                            }
-                            onCheckedChange={toggleAll}
-                            aria-label="Select all"
-                            style={{
-                              borderColor:
-                                allChecked || someChecked
-                                  ? "#22D3EE"
-                                  : "#1A3354",
-                            }}
-                          />
-                        </th>
-                        {[
-                          "Title",
-                          "Username",
-                          "Password",
-                          "URL",
-                          "Notes",
-                          "Status",
-                          "Action",
-                        ].map((label) => (
-                          <th
-                            key={label}
-                            style={{
-                              padding: "10px 12px",
-                              color: "#9BB0C9",
-                              fontWeight: 500,
-                              fontSize: 13,
-                              textAlign: "left",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map((entry, idx) => (
-                        <tr
-                          key={`${entry.title}-${idx}`}
-                          data-ocid={`csv_import.item.${idx + 1}`}
-                          style={{
-                            borderBottom: "1px solid rgba(26,51,84,0.6)",
-                            background: !checked[idx]
-                              ? "rgba(7,20,39,0.25)"
-                              : entry.isDuplicate
-                                ? "rgba(251,191,36,0.04)"
-                                : idx % 2 === 0
-                                  ? "rgba(7,20,39,0.4)"
-                                  : "rgba(13,31,58,0.6)",
-                            opacity: checked[idx] ? 1 : 0.4,
-                            transition: "opacity 0.15s",
-                          }}
-                        >
-                          {/* Checkbox — sticky */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              position: "sticky",
-                              left: 0,
-                              background: "inherit",
-                              zIndex: 2,
-                            }}
-                          >
-                            <Checkbox
-                              data-ocid={`csv_import.checkbox.${idx + 1}`}
-                              checked={checked[idx]}
-                              onCheckedChange={() => toggleRow(idx)}
-                              style={{
-                                borderColor: checked[idx]
-                                  ? "#22D3EE"
-                                  : "#1A3354",
-                              }}
-                            />
-                          </td>
-
-                          {/* Title */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              color: entry.isDuplicate ? "#fbbf24" : "#EAF2FF",
-                              fontSize: 13,
-                              fontWeight: 500,
-                              maxWidth: 180,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={entry.title}
-                          >
-                            {entry.title}
-                          </td>
-
-                          {/* Username */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              color: "#9BB0C9",
-                              fontSize: 13,
-                              maxWidth: 160,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={entry.username}
-                          >
-                            {entry.username || "—"}
-                          </td>
-
-                          {/* Password — masked with show/hide */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              maxWidth: 140,
-                            }}
-                          >
-                            <PasswordCell value={entry.password} />
-                          </td>
-
-                          {/* URL */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              color: "#9BB0C9",
-                              fontSize: 12,
-                              maxWidth: 200,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={entry.url}
-                          >
-                            {entry.url || "—"}
-                          </td>
-
-                          {/* Notes */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              color: "#9BB0C9",
-                              fontSize: 12,
-                              maxWidth: 140,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={entry.notes}
-                          >
-                            {entry.notes || "—"}
-                          </td>
-
-                          {/* Status badge with tooltip for duplicates */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {entry.isDuplicate ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 4,
-                                      padding: "2px 8px",
-                                      borderRadius: 999,
-                                      fontSize: 11,
-                                      background: "rgba(251,191,36,0.12)",
-                                      color: "#fbbf24",
-                                      border: "1px solid rgba(251,191,36,0.3)",
-                                      cursor: "help",
-                                    }}
-                                  >
-                                    Duplicate
-                                    <Info size={10} />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                  side="top"
-                                  style={{
-                                    background: "#0D1F3A",
-                                    border: "1px solid rgba(251,191,36,0.3)",
-                                    color: "#fbbf24",
-                                    fontSize: 12,
-                                  }}
-                                >
-                                  "{entry.title}" already exists in your vault
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <span
-                                style={{
-                                  display: "inline-block",
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  fontSize: 11,
-                                  background: "rgba(34,211,238,0.1)",
-                                  color: "#22D3EE",
-                                  border: "1px solid rgba(34,211,238,0.25)",
-                                }}
-                              >
-                                New
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Action */}
-                          <td
-                            style={{
-                              padding: "10px 12px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {entry.isDuplicate && checked[idx] ? (
-                              <div style={{ display: "flex", gap: 4 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setEntryAction(idx, "skip")}
-                                  style={{
-                                    fontSize: 11,
-                                    padding: "2px 8px",
-                                    borderRadius: 999,
-                                    cursor: "pointer",
-                                    background:
-                                      entry.action === "skip"
-                                        ? "rgba(251,191,36,0.15)"
-                                        : "transparent",
-                                    border: `1px solid ${
-                                      entry.action === "skip"
-                                        ? "rgba(251,191,36,0.5)"
-                                        : "rgba(251,191,36,0.2)"
-                                    }`,
-                                    color:
-                                      entry.action === "skip"
-                                        ? "#fbbf24"
-                                        : "#9BB0C9",
-                                    transition: "all 0.15s",
-                                  }}
-                                >
-                                  {t.csvImportSkip}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEntryAction(idx, "overwrite")
-                                  }
-                                  style={{
-                                    fontSize: 11,
-                                    padding: "2px 8px",
-                                    borderRadius: 999,
-                                    cursor: "pointer",
-                                    background:
-                                      entry.action === "overwrite"
-                                        ? "rgba(34,211,238,0.12)"
-                                        : "transparent",
-                                    border: `1px solid ${
-                                      entry.action === "overwrite"
-                                        ? "rgba(34,211,238,0.4)"
-                                        : "rgba(34,211,238,0.15)"
-                                    }`,
-                                    color:
-                                      entry.action === "overwrite"
-                                        ? "#22D3EE"
-                                        : "#9BB0C9",
-                                    transition: "all 0.15s",
-                                  }}
-                                >
-                                  {t.csvImportOverwrite}
-                                </button>
-                              </div>
-                            ) : (
-                              <span style={{ fontSize: 12, color: "#4A6888" }}>
-                                {!checked[idx]
-                                  ? "Not selected"
-                                  : entry.action === "skip"
-                                    ? t.csvImportSkip
-                                    : "—"}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex justify-between gap-2 flex-shrink-0 pt-1">
-                  <Button
-                    data-ocid="csv_import.back.button"
-                    variant="outline"
-                    onClick={() => {
-                      setStep("upload");
-                      setEntries([]);
-                      setFileName("");
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "1px solid #1A3354",
-                      color: "#9BB0C9",
-                    }}
-                  >
-                    {t.cancel}
-                  </Button>
-                  <Button
-                    data-ocid="csv_import.start.primary_button"
-                    onClick={handleImport}
-                    disabled={selectedCount === 0}
-                    style={{
-                      background:
-                        selectedCount === 0
-                          ? "rgba(34,211,238,0.3)"
-                          : "#22D3EE",
-                      color: "#071427",
-                    }}
-                    className="font-semibold"
-                  >
-                    {t.csvImportStart} ({selectedCount})
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Importing */}
-            {step === "importing" && (
-              <div
-                data-ocid="csv_import.loading_state"
-                className="flex flex-col items-center gap-6 py-10"
+        <div className="p-6 pt-4 flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Step 1: Upload */}
+          {step === "upload" && (
+            <div className="flex flex-col gap-4">
+              <label
+                data-ocid="csv_import.dropzone"
+                htmlFor="csv-file-input"
+                onDrop={handleDrop}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(true);
+                }}
+                onDragLeave={() => setIsDragOver(false)}
+                className="cursor-pointer rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 py-12 transition-all"
+                style={{
+                  borderColor: isDragOver ? "#22D3EE" : "rgba(34,211,238,0.25)",
+                  background: isDragOver
+                    ? "rgba(34,211,238,0.06)"
+                    : "rgba(34,211,238,0.02)",
+                }}
               >
-                <Loader2
-                  size={40}
-                  className="animate-spin"
-                  style={{ color: "#22D3EE" }}
+                <Upload
+                  size={32}
+                  style={{
+                    color: isDragOver ? "#22D3EE" : "rgba(34,211,238,0.5)",
+                  }}
                 />
-                <div className="w-full max-w-sm flex flex-col gap-2">
-                  <div
-                    className="flex justify-between text-sm"
-                    style={{ color: "#9BB0C9" }}
-                  >
-                    <span>Importing passwords...</span>
-                    <span>{progress}%</span>
-                  </div>
-                  <Progress
-                    value={progress}
-                    className="h-2"
-                    style={{ background: "rgba(34,211,238,0.1)" }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Done */}
-            {step === "done" && (
-              <div
-                data-ocid="csv_import.success_state"
-                className="flex flex-col items-center gap-5 py-10"
-              >
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(34,211,238,0.1)" }}
+                <p
+                  className="text-sm font-medium"
+                  style={{ color: isDragOver ? "#22D3EE" : "#9BB0C9" }}
                 >
-                  <CheckCircle2 size={32} style={{ color: "#22D3EE" }} />
+                  {fileName ? fileName : t.csvImportDrop}
+                </p>
+                <input
+                  id="csv-file-input"
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={handleFileInput}
+                  data-ocid="csv_import.upload_button"
+                />
+              </label>
+
+              {parseError && (
+                <div
+                  data-ocid="csv_import.error_state"
+                  className="flex items-center gap-2 text-sm px-4 py-3 rounded-lg"
+                  style={{
+                    background: "rgba(239,68,68,0.08)",
+                    border: "1px solid rgba(239,68,68,0.3)",
+                    color: "#f87171",
+                  }}
+                >
+                  <XCircle size={15} />
+                  {parseError}
                 </div>
-                <div className="text-center flex flex-col gap-1">
-                  <h3
-                    className="text-lg font-semibold"
-                    style={{ color: "#EAF2FF" }}
-                  >
-                    {t.csvImportSuccess}
-                  </h3>
-                  <p className="text-sm" style={{ color: "#9BB0C9" }}>
-                    {importedCount} imported, {skippedCount} skipped
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <div
-                    className="px-4 py-2 rounded-lg text-sm text-center"
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  data-ocid="csv_import.cancel_button"
+                  variant="outline"
+                  onClick={handleClose}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #1A3354",
+                    color: "#9BB0C9",
+                  }}
+                >
+                  {t.cancel}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Preview */}
+          {step === "preview" && (
+            <div className="flex flex-col gap-3 h-full overflow-hidden">
+              {/* Stats + bulk actions row */}
+              <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm" style={{ color: "#9BB0C9" }}>
+                    {entries.length} items —{" "}
+                    <span style={{ color: "#22D3EE" }}>{newCount} new</span>,{" "}
+                    <span style={{ color: "#fbbf24" }}>
+                      {duplicateCount} {t.csvImportDuplicates}
+                    </span>
+                  </span>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full"
                     style={{
-                      background: "rgba(34,211,238,0.08)",
-                      border: "1px solid rgba(34,211,238,0.2)",
+                      background: "rgba(34,211,238,0.1)",
                       color: "#22D3EE",
-                      minWidth: 100,
+                      border: "1px solid rgba(34,211,238,0.2)",
                     }}
                   >
-                    <div className="text-2xl font-bold">{importedCount}</div>
-                    <div className="text-xs" style={{ color: "#9BB0C9" }}>
-                      Imported
-                    </div>
-                  </div>
-                  <div
-                    className="px-4 py-2 rounded-lg text-sm text-center"
-                    style={{
-                      background: "rgba(251,191,36,0.06)",
-                      border: "1px solid rgba(251,191,36,0.2)",
-                      color: "#fbbf24",
-                      minWidth: 100,
-                    }}
-                  >
-                    <div className="text-2xl font-bold">{skippedCount}</div>
-                    <div className="text-xs" style={{ color: "#9BB0C9" }}>
-                      Skipped
-                    </div>
-                  </div>
+                    {selectedCount} selected
+                  </span>
                 </div>
-                <div className="flex gap-2 mt-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
-                    data-ocid="csv_import.close.button"
+                    size="sm"
                     variant="outline"
-                    onClick={handleClose}
+                    onClick={toggleAll}
+                    className="text-xs h-7"
                     style={{
-                      background: "transparent",
-                      border: "1px solid #1A3354",
-                      color: "#9BB0C9",
+                      background: allChecked
+                        ? "rgba(34,211,238,0.1)"
+                        : "transparent",
+                      border: "1px solid rgba(34,211,238,0.3)",
+                      color: "#22D3EE",
                     }}
                   >
-                    {t.close}
+                    {allChecked ? "Deselect All" : "Select All"}
                   </Button>
-                  {importedCount > 0 && (
-                    <Button
-                      data-ocid="csv_import.goto_passwords.button"
-                      onClick={handleGoToPasswords}
-                      style={{ background: "#22D3EE", color: "#071427" }}
-                      className="font-semibold"
-                    >
-                      View Passwords
-                      <ArrowRight size={14} className="ml-1" />
-                    </Button>
+                  {duplicateCount > 0 && (
+                    <>
+                      <Button
+                        data-ocid="csv_import.skip_all.button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAllDuplicatesAction("skip")}
+                        className="text-xs h-7"
+                        style={{
+                          background: "transparent",
+                          border: "1px solid rgba(251,191,36,0.3)",
+                          color: "#fbbf24",
+                        }}
+                      >
+                        <SkipForward size={12} className="mr-1" />
+                        {t.csvImportSkipAll}
+                      </Button>
+                      <Button
+                        data-ocid="csv_import.overwrite_all.button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAllDuplicatesAction("overwrite")}
+                        className="text-xs h-7"
+                        style={{
+                          background: "transparent",
+                          border: "1px solid rgba(34,211,238,0.3)",
+                          color: "#22D3EE",
+                        }}
+                      >
+                        {t.csvImportOverwriteAll}
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </TooltipProvider>
+
+              {/* Search bar */}
+              <div className="flex-shrink-0">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name or username..."
+                  data-ocid="csv_import.search_input"
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    background: "#071427",
+                    border: "1px solid #1A3354",
+                    color: "#EAF2FF",
+                    fontSize: 13,
+                    outline: "none",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(34,211,238,0.5)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "#1A3354";
+                  }}
+                />
+              </div>
+
+              {/* Scrollable table container */}
+              <div
+                className="rounded-lg border flex-1 min-h-0"
+                style={{
+                  borderColor: "#1A3354",
+                  overflow: "auto",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    tableLayout: "auto",
+                  }}
+                >
+                  <thead
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 10,
+                      background: "#071427",
+                    }}
+                  >
+                    <tr style={{ borderBottom: "1px solid #1A3354" }}>
+                      {/* Select checkbox header */}
+                      <th
+                        style={{
+                          width: 44,
+                          padding: "10px 12px",
+                          position: "sticky",
+                          left: 0,
+                          background: "#071427",
+                          zIndex: 11,
+                        }}
+                      >
+                        <Checkbox
+                          checked={allChecked}
+                          data-state={
+                            someChecked
+                              ? "indeterminate"
+                              : allChecked
+                                ? "checked"
+                                : "unchecked"
+                          }
+                          onCheckedChange={toggleAll}
+                          aria-label="Select all"
+                          style={{
+                            borderColor:
+                              allChecked || someChecked ? "#22D3EE" : "#1A3354",
+                          }}
+                        />
+                      </th>
+                      {["Name", "Username"].map((label) => (
+                        <th
+                          key={label}
+                          style={{
+                            padding: "10px 12px",
+                            color: "#9BB0C9",
+                            fontWeight: 500,
+                            fontSize: 13,
+                            textAlign: "left",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEntries.map(({ entry, idx }) => (
+                      <tr
+                        key={`${entry.title}-${idx}`}
+                        data-ocid={`csv_import.item.${idx + 1}`}
+                        style={{
+                          borderBottom: "1px solid rgba(26,51,84,0.6)",
+                          background: !checked[idx]
+                            ? "rgba(7,20,39,0.25)"
+                            : entry.isDuplicate
+                              ? "rgba(251,191,36,0.04)"
+                              : idx % 2 === 0
+                                ? "rgba(7,20,39,0.4)"
+                                : "rgba(13,31,58,0.6)",
+                          opacity: checked[idx] ? 1 : 0.4,
+                          transition: "opacity 0.15s",
+                        }}
+                      >
+                        {/* Checkbox — sticky */}
+                        <td
+                          style={{
+                            padding: "10px 12px",
+                            position: "sticky",
+                            left: 0,
+                            background: "inherit",
+                            zIndex: 2,
+                          }}
+                        >
+                          <Checkbox
+                            data-ocid={`csv_import.checkbox.${idx + 1}`}
+                            checked={checked[idx]}
+                            onCheckedChange={() => toggleRow(idx)}
+                            style={{
+                              borderColor: checked[idx] ? "#22D3EE" : "#1A3354",
+                            }}
+                          />
+                        </td>
+
+                        {/* Title */}
+                        <td
+                          style={{
+                            padding: "10px 12px",
+                            color: entry.isDuplicate ? "#fbbf24" : "#EAF2FF",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            maxWidth: 260,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={entry.title}
+                        >
+                          <span>{entry.title}</span>
+                          {entry.isDuplicate && (
+                            <span
+                              style={{
+                                marginLeft: 6,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "1px 6px",
+                                borderRadius: 999,
+                                fontSize: 10,
+                                background: "rgba(251,191,36,0.12)",
+                                color: "#fbbf24",
+                                border: "1px solid rgba(251,191,36,0.3)",
+                                verticalAlign: "middle",
+                              }}
+                              title={`"${entry.title}" already exists in your vault — will be skipped`}
+                            >
+                              Duplicate
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Username */}
+                        <td
+                          style={{
+                            padding: "10px 12px",
+                            color: "#9BB0C9",
+                            fontSize: 13,
+                            maxWidth: 260,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={entry.username}
+                        >
+                          {entry.username || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-between gap-2 flex-shrink-0 pt-1">
+                <Button
+                  data-ocid="csv_import.back.button"
+                  variant="outline"
+                  onClick={() => {
+                    setStep("upload");
+                    setEntries([]);
+                    setFileName("");
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #1A3354",
+                    color: "#9BB0C9",
+                  }}
+                >
+                  {t.cancel}
+                </Button>
+                <Button
+                  data-ocid="csv_import.start.primary_button"
+                  onClick={handleImport}
+                  disabled={selectedCount === 0}
+                  style={{
+                    background:
+                      selectedCount === 0 ? "rgba(34,211,238,0.3)" : "#22D3EE",
+                    color: "#071427",
+                  }}
+                  className="font-semibold"
+                >
+                  {t.csvImportStart} ({selectedCount})
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Importing */}
+          {step === "importing" && (
+            <div
+              data-ocid="csv_import.loading_state"
+              className="flex flex-col items-center gap-6 py-10"
+            >
+              <Loader2
+                size={40}
+                className="animate-spin"
+                style={{ color: "#22D3EE" }}
+              />
+              <div className="w-full max-w-sm flex flex-col gap-2">
+                <div
+                  className="flex justify-between text-sm"
+                  style={{ color: "#9BB0C9" }}
+                >
+                  <span>Importing passwords...</span>
+                  <span>{progress}%</span>
+                </div>
+                <Progress
+                  value={progress}
+                  className="h-2"
+                  style={{ background: "rgba(34,211,238,0.1)" }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Done */}
+          {step === "done" && (
+            <div
+              data-ocid="csv_import.success_state"
+              className="flex flex-col items-center gap-5 py-10"
+            >
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(34,211,238,0.1)" }}
+              >
+                <CheckCircle2 size={32} style={{ color: "#22D3EE" }} />
+              </div>
+              <div className="text-center flex flex-col gap-1">
+                <h3
+                  className="text-lg font-semibold"
+                  style={{ color: "#EAF2FF" }}
+                >
+                  {t.csvImportSuccess}
+                </h3>
+                <p className="text-sm" style={{ color: "#9BB0C9" }}>
+                  {importedCount} imported, {skippedCount} skipped
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <div
+                  className="px-4 py-2 rounded-lg text-sm text-center"
+                  style={{
+                    background: "rgba(34,211,238,0.08)",
+                    border: "1px solid rgba(34,211,238,0.2)",
+                    color: "#22D3EE",
+                    minWidth: 100,
+                  }}
+                >
+                  <div className="text-2xl font-bold">{importedCount}</div>
+                  <div className="text-xs" style={{ color: "#9BB0C9" }}>
+                    Imported
+                  </div>
+                </div>
+                <div
+                  className="px-4 py-2 rounded-lg text-sm text-center"
+                  style={{
+                    background: "rgba(251,191,36,0.06)",
+                    border: "1px solid rgba(251,191,36,0.2)",
+                    color: "#fbbf24",
+                    minWidth: 100,
+                  }}
+                >
+                  <div className="text-2xl font-bold">{skippedCount}</div>
+                  <div className="text-xs" style={{ color: "#9BB0C9" }}>
+                    Skipped
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  data-ocid="csv_import.close.button"
+                  variant="outline"
+                  onClick={handleClose}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #1A3354",
+                    color: "#9BB0C9",
+                  }}
+                >
+                  {t.close}
+                </Button>
+                {importedCount > 0 && (
+                  <Button
+                    data-ocid="csv_import.goto_passwords.button"
+                    onClick={handleGoToPasswords}
+                    style={{ background: "#22D3EE", color: "#071427" }}
+                    className="font-semibold"
+                  >
+                    View Passwords
+                    <ArrowRight size={14} className="ml-1" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
