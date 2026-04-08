@@ -33,7 +33,11 @@ const bottomItems = [
 export default function Sidebar() {
   const { t } = useLanguage();
   const location = useLocation();
-  const { data: isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const {
+    data: isAdmin,
+    isLoading: isAdminLoading,
+    isError: isAdminError,
+  } = useIsAdmin();
   const { collapsed, setCollapsed, breakpoint, mobileOpen, setMobileOpen } =
     useLayoutContext();
 
@@ -49,7 +53,11 @@ export default function Sidebar() {
   };
 
   const visibleNavItems = navItems.filter(
-    (item) => item.key !== "admin" || isAdmin || isAdminLoading,
+    (item) =>
+      item.key !== "admin" ||
+      isAdmin === true ||
+      isAdminLoading ||
+      isAdminError,
   );
 
   // On mobile: show if mobileOpen, else hidden off-screen

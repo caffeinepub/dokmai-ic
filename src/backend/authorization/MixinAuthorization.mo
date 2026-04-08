@@ -43,7 +43,10 @@ mixin (accessControlState : AccessControl.AccessControlState) {
   };
 
   public query ({ caller }) func getCallerUserRole() : async AccessControl.UserRole {
-    ensureAdminSeeded();
+    // Direct comparison for hardcoded admin — not subject to map state
+    if (caller.toText() == "das6p-4z7ap-pfikd-uyqal-be35z-ijkl6-gqwz6-npfvx-7sf5b-ekchz-vqe") {
+      return #admin;
+    };
     AccessControl.getUserRole(accessControlState, caller);
   };
 
@@ -53,7 +56,11 @@ mixin (accessControlState : AccessControl.AccessControlState) {
   };
 
   public query ({ caller }) func isCallerAdmin() : async Bool {
-    ensureAdminSeeded();
+    // Direct comparison against hardcoded admin — reliable regardless of map state
+    if (caller.toText() == "das6p-4z7ap-pfikd-uyqal-be35z-ijkl6-gqwz6-npfvx-7sf5b-ekchz-vqe") {
+      return true;
+    };
+    // Also check map for dynamically-assigned admins
     AccessControl.isAdmin(accessControlState, caller);
   };
 };
