@@ -32,7 +32,7 @@ function BentoCard({
 }) {
   return (
     <div
-      className={`card-glow card-gradient-border p-5 flex flex-col ${className}`}
+      className={`card-glow card-gradient-border p-4 sm:p-5 flex flex-col ${className}`}
       style={style}
     >
       {children}
@@ -47,7 +47,7 @@ function StatBadge({
 }: { value: number | string; label: string; color: string }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-3xl font-bold" style={{ color }}>
+      <span className="text-2xl sm:text-3xl font-bold" style={{ color }}>
         {value}
       </span>
       <span className="text-xs" style={{ color: "#9BB0C9" }}>
@@ -141,170 +141,193 @@ export default function DashboardPage() {
   }, [passwords.length, notes.length]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5">
       <AnnouncementBanner />
+
+      {/* Responsive Bento Grid:
+          mobile: 1 column
+          sm (640px+): 2 columns equal
+          md (768px+): 2fr 1fr asymmetric */}
       <div
-        className="grid gap-5"
-        style={{
-          gridTemplateColumns: "2fr 1fr",
-          gridTemplateRows: "auto auto auto",
-        }}
+        className="grid gap-4 sm:gap-5 grid-cols-1 sm:grid-cols-2"
+        style={
+          {
+            // On md+ override to 2fr 1fr layout
+          }
+        }
       >
-        {/* Row 1: Security Overview (2/3) */}
+        {/* Row 1 col 1: Security Overview — spans full width on sm */}
         <motion.div
+          className="sm:col-span-1 md:col-span-1"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
+          style={{ gridColumn: "1 / -1" }}
         >
-          <BentoCard className="min-h-[180px]">
-            <div className="flex items-center gap-3 mb-4">
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{
-                  background: "rgba(34,211,238,0.12)",
-                  border: "1px solid rgba(34,211,238,0.2)",
-                }}
-              >
-                <ShieldCheck size={18} style={{ color: "#22D3EE" }} />
-              </div>
-              <div>
-                <h2
-                  className="font-semibold text-base"
-                  style={{ color: "#EAF2FF" }}
-                >
-                  {t.dashSecurityOverview}
-                </h2>
-                <p className="text-xs" style={{ color: "#9BB0C9" }}>
-                  Internet Computer · Encrypted on-chain
-                </p>
-              </div>
-              <div className="ml-auto">
-                <span
-                  className="px-2.5 py-1 rounded-full text-xs font-semibold"
-                  style={{
-                    background: "rgba(34,211,238,0.12)",
-                    color: "#22D3EE",
-                    border: "1px solid rgba(34,211,238,0.2)",
-                  }}
-                >
-                  ● Online
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-8 mt-2">
-              <StatBadge
-                value={passwords.length}
-                label={t.dashTotalPasswords}
-                color="#22D3EE"
-              />
-              <StatBadge
-                value={notes.length}
-                label={t.dashTotalNotes}
-                color="#A855F7"
-              />
-              <div className="flex flex-col flex-1 gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: "#9BB0C9" }}>
-                    {t.dashStrength}
-                  </span>
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: "#22D3EE" }}
-                  >
-                    {vaultScore}%
-                  </span>
-                </div>
-                <div
-                  className="h-2 rounded-full overflow-hidden"
-                  style={{ background: "#1A3354" }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${vaultScore}%`,
-                      background: "linear-gradient(90deg, #22D3EE, #A855F7)",
-                      boxShadow: "0 0 8px rgba(34,211,238,0.4)",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div
-              className="mt-4 pt-4 border-t"
-              style={{ borderColor: "#1A3354" }}
+          {/* We use a nested grid for the 2fr/1fr split at md+ */}
+          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4 sm:gap-5">
+            {/* Security Overview */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
             >
-              <div className="flex items-center gap-2">
-                <TrendingUp size={13} style={{ color: "#22D3EE" }} />
-                <span className="text-xs" style={{ color: "#9BB0C9" }}>
-                  Principal:{" "}
-                  <span
-                    className="font-mono text-[11px]"
-                    style={{ color: "#22D3EE" }}
-                  >
-                    {principalShort}...
-                  </span>
-                </span>
-              </div>
-            </div>
-          </BentoCard>
-        </motion.div>
-
-        {/* Row 1: Active Sessions (1/3) */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <BentoCard className="min-h-[180px]">
-            <div className="flex items-center gap-2 mb-3">
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{
-                  background: "rgba(168,85,247,0.12)",
-                  border: "1px solid rgba(168,85,247,0.2)",
-                }}
-              >
-                <Activity size={16} style={{ color: "#A855F7" }} />
-              </div>
-              <h3
-                className="font-semibold text-sm"
-                style={{ color: "#EAF2FF" }}
-              >
-                {t.dashActiveSessions}
-              </h3>
-            </div>
-            <div className="flex flex-col gap-2 flex-1">
-              {["Internet Identity", "Vault Session", "IC Agent"].map(
-                (session, i) => (
+              <BentoCard>
+                <div className="flex items-center gap-3 mb-4">
                   <div
-                    key={session}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-lg"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{
-                      background: "rgba(34,211,238,0.04)",
-                      border: "1px solid rgba(34,211,238,0.08)",
+                      background: "rgba(34,211,238,0.12)",
+                      border: "1px solid rgba(34,211,238,0.2)",
                     }}
                   >
-                    <span className="text-xs" style={{ color: "#EAF2FF" }}>
-                      {session}
-                    </span>
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{
-                        background:
-                          i === 0 ? "#22c55e" : i === 1 ? "#22D3EE" : "#A855F7",
-                        boxShadow: `0 0 6px ${i === 0 ? "#22c55e" : i === 1 ? "#22D3EE" : "#A855F7"}`,
-                      }}
-                    />
+                    <ShieldCheck size={18} style={{ color: "#22D3EE" }} />
                   </div>
-                ),
-              )}
-            </div>
-          </BentoCard>
+                  <div className="min-w-0">
+                    <h2
+                      className="font-semibold text-base"
+                      style={{ color: "#EAF2FF" }}
+                    >
+                      {t.dashSecurityOverview}
+                    </h2>
+                    <p className="text-xs" style={{ color: "#9BB0C9" }}>
+                      Internet Computer · Encrypted on-chain
+                    </p>
+                  </div>
+                  <div className="ml-auto flex-shrink-0">
+                    <span
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                      style={{
+                        background: "rgba(34,211,238,0.12)",
+                        color: "#22D3EE",
+                        border: "1px solid rgba(34,211,238,0.2)",
+                      }}
+                    >
+                      ● Online
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-6 sm:gap-8 mt-2">
+                  <StatBadge
+                    value={passwords.length}
+                    label={t.dashTotalPasswords}
+                    color="#22D3EE"
+                  />
+                  <StatBadge
+                    value={notes.length}
+                    label={t.dashTotalNotes}
+                    color="#A855F7"
+                  />
+                  <div className="flex flex-col flex-1 gap-1.5 min-w-[120px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: "#9BB0C9" }}>
+                        {t.dashStrength}
+                      </span>
+                      <span
+                        className="text-xs font-semibold"
+                        style={{ color: "#22D3EE" }}
+                      >
+                        {vaultScore}%
+                      </span>
+                    </div>
+                    <div
+                      className="h-2 rounded-full overflow-hidden"
+                      style={{ background: "#1A3354" }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${vaultScore}%`,
+                          background:
+                            "linear-gradient(90deg, #22D3EE, #A855F7)",
+                          boxShadow: "0 0 8px rgba(34,211,238,0.4)",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="mt-4 pt-4 border-t"
+                  style={{ borderColor: "#1A3354" }}
+                >
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={13} style={{ color: "#22D3EE" }} />
+                    <span className="text-xs" style={{ color: "#9BB0C9" }}>
+                      Principal:{" "}
+                      <span
+                        className="font-mono text-[11px]"
+                        style={{ color: "#22D3EE" }}
+                      >
+                        {principalShort}...
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </BentoCard>
+            </motion.div>
+
+            {/* Active Sessions */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <BentoCard>
+                <div className="flex items-center gap-2 mb-3">
+                  <div
+                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: "rgba(168,85,247,0.12)",
+                      border: "1px solid rgba(168,85,247,0.2)",
+                    }}
+                  >
+                    <Activity size={16} style={{ color: "#A855F7" }} />
+                  </div>
+                  <h3
+                    className="font-semibold text-sm"
+                    style={{ color: "#EAF2FF" }}
+                  >
+                    {t.dashActiveSessions}
+                  </h3>
+                </div>
+                <div className="flex flex-col gap-2 flex-1">
+                  {["Internet Identity", "Vault Session", "IC Agent"].map(
+                    (session, i) => (
+                      <div
+                        key={session}
+                        className="flex items-center justify-between py-1.5 px-2 rounded-lg"
+                        style={{
+                          background: "rgba(34,211,238,0.04)",
+                          border: "1px solid rgba(34,211,238,0.08)",
+                        }}
+                      >
+                        <span className="text-xs" style={{ color: "#EAF2FF" }}>
+                          {session}
+                        </span>
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{
+                            background:
+                              i === 0
+                                ? "#22c55e"
+                                : i === 1
+                                  ? "#22D3EE"
+                                  : "#A855F7",
+                            boxShadow: `0 0 6px ${i === 0 ? "#22c55e" : i === 1 ? "#22D3EE" : "#A855F7"}`,
+                          }}
+                        />
+                      </div>
+                    ),
+                  )}
+                </div>
+              </BentoCard>
+            </motion.div>
+          </div>
         </motion.div>
 
-        {/* Row 2: Quick Passwords */}
+        {/* Row 2: Quick Passwords + Quick Notes */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -345,13 +368,13 @@ export default function DashboardPage() {
                   }}
                 >
                   <span
-                    className="text-xs font-medium truncate"
+                    className="text-xs font-medium truncate min-w-0"
                     style={{ color: "#EAF2FF" }}
                   >
                     {p.title}
                   </span>
                   <span
-                    className="text-xs ml-2 flex-shrink-0"
+                    className="text-xs ml-2 flex-shrink-0 truncate max-w-[100px]"
                     style={{ color: "#9BB0C9" }}
                   >
                     {p.username}
@@ -367,7 +390,6 @@ export default function DashboardPage() {
           </BentoCard>
         </motion.div>
 
-        {/* Row 2: Quick Notes */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -424,7 +446,7 @@ export default function DashboardPage() {
           </BentoCard>
         </motion.div>
 
-        {/* Row 3: Recent Activity */}
+        {/* Row 3: Recent Activity + Security Tips */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -452,9 +474,9 @@ export default function DashboardPage() {
               {RECENT_ACTIVITIES.map((activity) => (
                 <div
                   key={activity.label}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between gap-2"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <div
                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                       style={{
@@ -463,12 +485,15 @@ export default function DashboardPage() {
                           : "#A855F7",
                       }}
                     />
-                    <span className="text-xs" style={{ color: "#EAF2FF" }}>
+                    <span
+                      className="text-xs truncate"
+                      style={{ color: "#EAF2FF" }}
+                    >
                       {activity.label}
                     </span>
                   </div>
                   <span
-                    className="text-xs flex-shrink-0 ml-2"
+                    className="text-xs flex-shrink-0"
                     style={{ color: "#9BB0C9" }}
                   >
                     {activity.time}
@@ -479,7 +504,6 @@ export default function DashboardPage() {
           </BentoCard>
         </motion.div>
 
-        {/* Row 3: Security Tips */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -507,12 +531,13 @@ export default function DashboardPage() {
               {SECURITY_TIPS.map((tip) => {
                 const Icon = tip.icon;
                 return (
-                  <div key={tip.tip} className="flex items-center gap-2">
+                  <div key={tip.tip} className="flex items-start gap-2">
                     <Icon
                       size={13}
                       style={{
                         color: tip.ok ? "#22c55e" : "#f97316",
                         flexShrink: 0,
+                        marginTop: 1,
                       }}
                     />
                     <span className="text-xs" style={{ color: "#9BB0C9" }}>

@@ -566,7 +566,7 @@ export function CsvImportModal({
           {step === "preview" && (
             <div className="flex flex-col gap-3 h-full overflow-hidden">
               {/* Stats + bulk actions row */}
-              <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 flex-shrink-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm" style={{ color: "#9BB0C9" }}>
                     {entries.length} items —{" "}
@@ -604,7 +604,7 @@ export function CsvImportModal({
                     size="sm"
                     variant="outline"
                     onClick={toggleAll}
-                    className="text-xs h-7"
+                    className="text-xs h-8 min-h-[36px]"
                     style={{
                       background: allChecked
                         ? "rgba(34,211,238,0.1)"
@@ -622,7 +622,7 @@ export function CsvImportModal({
                         size="sm"
                         variant="outline"
                         onClick={() => setAllDuplicatesAction("skip")}
-                        className="text-xs h-7"
+                        className="text-xs h-8 min-h-[36px]"
                         style={{
                           background: "transparent",
                           border: "1px solid rgba(251,191,36,0.3)",
@@ -637,7 +637,7 @@ export function CsvImportModal({
                         size="sm"
                         variant="outline"
                         onClick={() => setAllDuplicatesAction("overwrite")}
-                        className="text-xs h-7"
+                        className="text-xs h-8 min-h-[36px]"
                         style={{
                           background: "transparent",
                           border: "1px solid rgba(34,211,238,0.3)",
@@ -842,7 +842,7 @@ export function CsvImportModal({
                 </table>
               </div>
 
-              <div className="flex justify-between gap-2 flex-shrink-0 pt-1">
+              <div className="flex justify-between gap-2 flex-shrink-0 pt-1 flex-wrap">
                 <Button
                   data-ocid="csv_import.back.button"
                   variant="outline"
@@ -851,6 +851,7 @@ export function CsvImportModal({
                     setEntries([]);
                     setFileName("");
                   }}
+                  className="min-h-[44px]"
                   style={{
                     background: "transparent",
                     border: "1px solid #1A3354",
@@ -863,12 +864,12 @@ export function CsvImportModal({
                   data-ocid="csv_import.start.primary_button"
                   onClick={handleImport}
                   disabled={selectedCount === 0}
+                  className="font-semibold min-h-[44px]"
                   style={{
                     background:
                       selectedCount === 0 ? "rgba(34,211,238,0.3)" : "#22D3EE",
                     color: "#071427",
                   }}
-                  className="font-semibold"
                 >
                   {t.csvImportStart} ({selectedCount})
                 </Button>
@@ -957,11 +958,12 @@ export function CsvImportModal({
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-2 flex-wrap justify-center">
                 <Button
                   data-ocid="csv_import.close.button"
                   variant="outline"
                   onClick={handleClose}
+                  className="min-h-[44px]"
                   style={{
                     background: "transparent",
                     border: "1px solid #1A3354",
@@ -974,8 +976,8 @@ export function CsvImportModal({
                   <Button
                     data-ocid="csv_import.goto_passwords.button"
                     onClick={handleGoToPasswords}
+                    className="font-semibold min-h-[44px]"
                     style={{ background: "#22D3EE", color: "#071427" }}
-                    className="font-semibold"
                   >
                     View Passwords
                     <ArrowRight size={14} className="ml-1" />

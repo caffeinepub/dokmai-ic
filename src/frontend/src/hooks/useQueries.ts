@@ -430,6 +430,25 @@ export function useDeletePassword() {
   });
 }
 
+export function useBulkDeletePasswords() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      titles: string[],
+    ): Promise<{ deleted: number; failed: number }> => {
+      if (!actor) throw new Error("Actor not ready");
+      const results = await Promise.allSettled(
+        titles.map((title) => actor.deletePasswordEntryFromVault(title)),
+      );
+      const deleted = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.filter((r) => r.status === "rejected").length;
+      return { deleted, failed };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["passwords"] }),
+  });
+}
+
 export function useAddSecureNote() {
   const { actor } = useActor();
   const qc = useQueryClient();

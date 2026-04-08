@@ -1,6 +1,5 @@
 "use client";
 
-import { GripVerticalIcon } from "lucide-react";
 import type * as React from "react";
 import * as ResizablePrimitive from "react-resizable-panels";
 
@@ -28,27 +27,58 @@ function ResizablePanel({
   return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
 }
 
+/**
+ * Fintech-themed resizable handle.
+ * Shows a thin dark line with a subtle neon-cyan vertical bar indicator.
+ * On hover/focus: glows with neon cyan. Cursor changes to col-resize.
+ */
 function ResizableHandle({
-  withHandle,
   className,
   ...props
-}: React.ComponentProps<typeof ResizablePrimitive.PanelResizeHandle> & {
-  withHandle?: boolean;
-}) {
+}: React.ComponentProps<typeof ResizablePrimitive.PanelResizeHandle>) {
   return (
     <ResizablePrimitive.PanelResizeHandle
       data-slot="resizable-handle"
       className={cn(
-        "bg-border focus-visible:ring-ring relative flex w-px items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-hidden data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full data-[panel-group-direction=vertical]:after:left-0 data-[panel-group-direction=vertical]:after:h-1 data-[panel-group-direction=vertical]:after:w-full data-[panel-group-direction=vertical]:after:translate-x-0 data-[panel-group-direction=vertical]:after:-translate-y-1/2 [&[data-panel-group-direction=vertical]>div]:rotate-90",
+        // Base: 6px wide hit target, no visible bg by default
+        "relative flex w-1.5 shrink-0 cursor-col-resize select-none items-center justify-center",
+        // Dark line background
+        "bg-transparent",
+        // Thin center line (via pseudo after)
+        "after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2",
+        "after:bg-white/10 after:transition-colors after:duration-200",
+        // On hover: line glows neon cyan
+        "hover:after:bg-cyan-400/60 focus-visible:after:bg-cyan-400/80",
+        // Drag indicator dot cluster
+        "data-[panel-group-direction=vertical]:h-1.5 data-[panel-group-direction=vertical]:w-full",
+        "data-[panel-group-direction=vertical]:cursor-row-resize",
+        "data-[panel-group-direction=vertical]:after:left-0 data-[panel-group-direction=vertical]:after:h-px",
+        "data-[panel-group-direction=vertical]:after:w-full data-[panel-group-direction=vertical]:after:translate-x-0",
+        "data-[panel-group-direction=vertical]:after:-translate-y-1/2",
+        "focus-visible:outline-none",
         className,
       )}
       {...props}
     >
-      {withHandle && (
-        <div className="bg-border z-10 flex h-4 w-3 items-center justify-center rounded-xs border">
-          <GripVerticalIcon className="size-2.5" />
-        </div>
-      )}
+      {/* Visual drag indicator: 3 stacked dots */}
+      <div
+        className="
+          z-10 flex flex-col items-center justify-center gap-[3px]
+          pointer-events-none opacity-40
+          transition-opacity duration-200
+          group-hover:opacity-80
+          [div[data-panel-resize-handle-enabled]]:hover:opacity-80
+        "
+        aria-hidden
+      >
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="block w-0.5 h-0.5 rounded-full"
+            style={{ background: "#22D3EE" }}
+          />
+        ))}
+      </div>
     </ResizablePrimitive.PanelResizeHandle>
   );
 }

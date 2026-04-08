@@ -10,6 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -20,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
+  CheckSquare,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -38,6 +44,7 @@ import {
   RotateCcw,
   Search,
   Shield,
+  Square,
   Tag,
   Trash2,
   X,
@@ -49,6 +56,7 @@ import PasswordGenerator from "../components/passwords/PasswordGenerator";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
   useAddPassword,
+  useBulkDeletePasswords,
   useDeletePassword,
   usePasswordEntries,
   usePasswordHistory,
@@ -940,11 +948,11 @@ function EditPasswordDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-ocid="passwords.edit.dialog"
+        className="w-[95vw] max-w-[520px]"
         style={{
           background: "#0D1F3A",
           border: "1px solid rgba(34,211,238,0.2)",
           color: "#EAF2FF",
-          maxWidth: 520,
         }}
       >
         <DialogHeader>
@@ -1495,11 +1503,11 @@ function AddPasswordDialog({
     >
       <DialogContent
         data-ocid="passwords.add.dialog"
+        className="w-[95vw] max-w-[520px]"
         style={{
           background: "#0D1F3A",
           border: "1px solid rgba(34,211,238,0.2)",
           color: "#EAF2FF",
-          maxWidth: 520,
         }}
       >
         <DialogHeader>
@@ -1927,6 +1935,8 @@ function AddPasswordDialog({
 export default function PasswordsPage() {
   const { t } = useLanguage();
   const { data: passwords = [], isLoading } = usePasswordEntries();
+  const { mutate: bulkDelete, isPending: isBulkDeleting } =
+    useBulkDeletePasswords();
 
   const [search, setSearch] = useState("");
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
@@ -1939,6 +1949,11 @@ export default function PasswordsPage() {
   // On mobile: show detail panel (true) or list panel (false)
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
 
+  // Multi-select state
+  const [selectMode, setSelectMode] = useState(false);
+  const [checkedTitles, setCheckedTitles] = useState<Set<string>>(new Set());
+  const [showBulkConfirmDialog, setShowBulkConfirmDialog] = useState(false);
+
   const filtered = passwords.filter(
     (p) =>
       p.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -1949,7 +1964,12 @@ export default function PasswordsPage() {
   const selectedEntry =
     passwords.find((p) => p.title === selectedTitle) ?? null;
 
+  const allFilteredChecked =
+    filtered.length > 0 && filtered.every((p) => checkedTitles.has(p.title));
+  const someFilteredChecked = filtered.some((p) => checkedTitles.has(p.title));
+
   const handleSelectEntry = (title: string) => {
+    if (selectMode) return; // don't open detail in select mode
     setSelectedTitle(title);
     setMobileShowDetail(true);
   };
@@ -1959,271 +1979,540 @@ export default function PasswordsPage() {
     setMobileShowDetail(false);
   };
 
+  const toggleCheck = (title: string) => {
+    setCheckedTitles((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredChecked) {
+      setCheckedTitles((prev) => {
+        const next = new Set(prev);
+        for (const p of filtered) next.delete(p.title);
+        return next;
+      });
+    } else {
+      setCheckedTitles((prev) => {
+        const next = new Set(prev);
+        for (const p of filtered) next.add(p.title);
+        return next;
+      });
+    }
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setCheckedTitles(new Set());
+  };
+
+  const handleBulkDeleteConfirm = () => {
+    const titles = Array.from(checkedTitles);
+    bulkDelete(titles, {
+      onSuccess: ({ deleted, failed }) => {
+        const msg =
+          failed > 0
+            ? `Deleted ${deleted}, failed ${failed}`
+            : `${deleted} password${deleted !== 1 ? "s" : ""} deleted`;
+        toast.success(msg);
+        // Clear detail panel if current entry was deleted
+        if (selectedTitle && checkedTitles.has(selectedTitle)) {
+          setSelectedTitle(null);
+          setMobileShowDetail(false);
+        }
+        exitSelectMode();
+        setShowBulkConfirmDialog(false);
+      },
+      onError: (e) => {
+        toast.error(`Bulk delete failed: ${e.message}`);
+        setShowBulkConfirmDialog(false);
+      },
+    });
+  };
+
   const panelBg = "rgba(10,15,30,0.7)";
   const borderColor = "rgba(255,255,255,0.06)";
+
+  // Persist panel sizes in localStorage
+  const STORAGE_KEY = "passwords-panel-sizes";
+  const defaultLayout = (() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as number[];
+        if (Array.isArray(parsed) && parsed.length === 2) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [28, 72];
+  })();
+
+  const handleLayout = (sizes: number[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sizes));
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <div
       className="flex overflow-hidden -m-4 md:-m-6"
       style={{ minHeight: 0, height: "calc(100% + 2rem)", flex: "1 1 0" }}
     >
-      {/* ── LEFT: List Panel ── */}
-      <div
-        className={[
-          "flex flex-col shrink-0",
-          "md:flex", // always visible on md+
-          mobileShowDetail ? "hidden" : "flex", // hide on mobile when detail is shown
-        ].join(" ")}
-        style={{
-          width: "clamp(260px, 30%, 340px)",
-          background: panelBg,
-          borderRight: `1px solid ${borderColor}`,
-          minHeight: 0,
-        }}
-        data-ocid="passwords.list_panel"
+      <ResizablePanelGroup
+        direction="horizontal"
+        onLayout={handleLayout}
+        className="w-full h-full"
       >
-        {/* List header */}
-        <div
-          className="px-4 pt-4 pb-3 shrink-0 flex flex-col gap-3"
-          style={{ borderBottom: `1px solid ${borderColor}` }}
+        {/* ── LEFT: List Panel ── */}
+        <ResizablePanel
+          defaultSize={defaultLayout[0]}
+          minSize={18}
+          maxSize={42}
+          className={[
+            "flex flex-col",
+            mobileShowDetail ? "hidden md:flex" : "flex",
+          ].join(" ")}
+          style={{ background: panelBg, minHeight: 0 }}
+          data-ocid="passwords.list_panel"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h1 className="text-base font-bold" style={{ color: "#EAF2FF" }}>
-                {t.pwdTitle}
-              </h1>
-              <p className="text-xs" style={{ color: "#9BB0C9" }}>
-                {passwords.length} entries
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                data-ocid="passwords.generator.button"
-                onClick={() => setShowGenerator(true)}
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs px-2.5 rounded-lg"
-                style={{
-                  borderColor: "rgba(168,85,247,0.4)",
-                  color: "#A855F7",
-                  background: "transparent",
-                }}
-                aria-label="Password Generator"
-              >
-                <Shield size={13} />
-              </Button>
-              <Button
-                data-ocid="passwords.add.primary_button"
-                onClick={() => setShowAdd(true)}
-                size="sm"
-                className="h-8 text-xs px-2.5 rounded-lg font-semibold"
-                style={{ background: "#22D3EE", color: "#071427" }}
-              >
-                <Plus size={13} className="mr-1" />
-                {t.pwdAdd}
-              </Button>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="relative">
-            <Search
-              size={13}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: "#9BB0C9" }}
-            />
-            <Input
-              data-ocid="passwords.search_input"
-              placeholder={t.search}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-8 text-sm"
-              style={{
-                background: "#0D1F3A",
-                border: "1px solid #1A3354",
-                color: "#EAF2FF",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* List entries */}
-        <div
-          className="flex-1 overflow-y-auto"
-          style={{
-            scrollbarWidth: "thin",
-            scrollbarColor: "#1A3354 transparent",
-          }}
-        >
-          {isLoading ? (
-            <div
-              className="flex items-center gap-2 p-5"
-              data-ocid="passwords.loading_state"
-            >
-              <Loader2
-                className="animate-spin"
-                size={16}
-                style={{ color: "#22D3EE" }}
-              />
-              <span className="text-sm" style={{ color: "#9BB0C9" }}>
-                {t.loading}
-              </span>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div
-              className="text-center py-12 px-4"
-              data-ocid="passwords.empty_state"
-            >
-              <KeyRound
-                size={32}
-                className="mx-auto mb-3 opacity-30"
-                style={{ color: "#22D3EE" }}
-              />
-              <p className="text-sm" style={{ color: "#9BB0C9" }}>
-                {search ? "No results" : t.noData}
-              </p>
-              {!search && (
-                <p className="text-xs mt-1" style={{ color: "#9BB0C9" }}>
-                  Click "+" to add your first password
+          {/* List header */}
+          <div
+            className="px-4 pt-4 pb-3 shrink-0 flex flex-col gap-3"
+            style={{ borderBottom: `1px solid ${borderColor}` }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h1
+                  className="text-base font-bold"
+                  style={{ color: "#EAF2FF" }}
+                >
+                  {t.pwdTitle}
+                </h1>
+                <p className="text-xs" style={{ color: "#9BB0C9" }}>
+                  {passwords.length} entries
                 </p>
-              )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                {!selectMode && (
+                  <>
+                    <Button
+                      data-ocid="passwords.generator.button"
+                      onClick={() => setShowGenerator(true)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs px-2.5 rounded-lg"
+                      style={{
+                        borderColor: "rgba(168,85,247,0.4)",
+                        color: "#A855F7",
+                        background: "transparent",
+                      }}
+                      aria-label="Password Generator"
+                    >
+                      <Shield size={13} />
+                    </Button>
+                    <Button
+                      data-ocid="passwords.add.primary_button"
+                      onClick={() => setShowAdd(true)}
+                      size="sm"
+                      className="h-8 text-xs px-2.5 rounded-lg font-semibold"
+                      style={{ background: "#22D3EE", color: "#071427" }}
+                    >
+                      <Plus size={13} className="mr-1" />
+                      {t.pwdAdd}
+                    </Button>
+                  </>
+                )}
+                {/* Select mode toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectMode) exitSelectMode();
+                    else setSelectMode(true);
+                  }}
+                  className="h-8 px-2.5 text-xs rounded-lg transition-colors hover:bg-white/5 flex items-center gap-1.5"
+                  style={{
+                    color: selectMode ? "#22D3EE" : "#9BB0C9",
+                    border: `1px solid ${selectMode ? "rgba(34,211,238,0.3)" : "#1A3354"}`,
+                    background: selectMode
+                      ? "rgba(34,211,238,0.06)"
+                      : "transparent",
+                  }}
+                  data-ocid="passwords.select_mode_button"
+                  aria-label={
+                    selectMode ? "Exit select mode" : "Enter select mode"
+                  }
+                >
+                  <CheckSquare size={13} />
+                  {selectMode && <span>Done</span>}
+                </button>
+              </div>
             </div>
-          ) : (
-            <AnimatePresence mode="popLayout">
-              {filtered.map((p, i) => {
-                const isSelected = p.title === selectedTitle;
-                return (
-                  <motion.button
-                    key={p.title}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -8 }}
-                    transition={{ delay: i * 0.03, duration: 0.15 }}
-                    type="button"
-                    onClick={() => handleSelectEntry(p.title)}
-                    data-ocid={`passwords.item.${i + 1}`}
-                    className="w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
+
+            {/* Select-all row — visible only in select mode */}
+            {selectMode && (
+              <div
+                className="flex items-center gap-3 px-1 py-1.5 rounded-lg"
+                style={{
+                  background: "rgba(34,211,238,0.04)",
+                  border: "1px solid rgba(34,211,238,0.12)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-2 flex-1 text-left"
+                  data-ocid="passwords.select_all_checkbox"
+                  aria-label={
+                    allFilteredChecked ? "Deselect all" : "Select all"
+                  }
+                >
+                  {allFilteredChecked ? (
+                    <CheckSquare
+                      size={15}
+                      style={{ color: "#22D3EE", flexShrink: 0 }}
+                    />
+                  ) : someFilteredChecked ? (
+                    <CheckSquare
+                      size={15}
+                      style={{ color: "rgba(34,211,238,0.5)", flexShrink: 0 }}
+                    />
+                  ) : (
+                    <Square
+                      size={15}
+                      style={{ color: "#9BB0C9", flexShrink: 0 }}
+                    />
+                  )}
+                  <span className="text-xs" style={{ color: "#9BB0C9" }}>
+                    {allFilteredChecked ? "Deselect all" : "Select all"}
+                  </span>
+                </button>
+                <span
+                  className="text-xs font-medium"
+                  style={{ color: "#22D3EE" }}
+                >
+                  {checkedTitles.size} selected
+                </span>
+              </div>
+            )}
+
+            {/* Bulk action toolbar */}
+            <AnimatePresence>
+              {selectMode && checkedTitles.size > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.15 }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg"
                     style={{
-                      borderBottom: `1px solid ${borderColor}`,
-                      borderLeft: isSelected
-                        ? "3px solid #22D3EE"
-                        : "3px solid transparent",
-                      background: isSelected
-                        ? "rgba(34,211,238,0.06)"
-                        : "transparent",
+                      background: "rgba(239,68,68,0.06)",
+                      border: "1px solid rgba(239,68,68,0.2)",
                     }}
                   >
-                    {/* Icon */}
-                    <div
-                      className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{
-                        background: isSelected
-                          ? "rgba(34,211,238,0.12)"
-                          : "rgba(255,255,255,0.05)",
-                      }}
+                    <span
+                      className="text-xs font-semibold flex-1"
+                      style={{ color: "#EAF2FF" }}
                     >
-                      <Lock
-                        size={14}
-                        style={{ color: isSelected ? "#22D3EE" : "#9BB0C9" }}
-                      />
-                    </div>
-
-                    {/* Text */}
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className="text-sm font-semibold truncate"
-                        style={{ color: isSelected ? "#EAF2FF" : "#CBD5E1" }}
-                      >
-                        {p.title}
-                      </p>
-                      <p
-                        className="text-xs truncate mt-0.5"
-                        style={{ color: "#9BB0C9" }}
-                      >
-                        {p.username || p.email || p.url || "—"}
-                      </p>
-                    </div>
-
-                    {/* Badges */}
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      {p.totp && (
-                        <span
-                          className="text-[9px] px-1 rounded"
-                          style={{
-                            background: "rgba(168,85,247,0.15)",
-                            color: "#A855F7",
-                          }}
-                        >
-                          2FA
-                        </span>
-                      )}
-                      {p.blob && (
-                        <Paperclip size={10} style={{ color: "#9BB0C9" }} />
-                      )}
-                    </div>
-                  </motion.button>
-                );
-              })}
+                      {checkedTitles.size} selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={exitSelectMode}
+                      className="text-xs px-2 py-1 rounded-lg hover:bg-white/5 transition-colors"
+                      style={{ color: "#9BB0C9" }}
+                      data-ocid="passwords.bulk_cancel_button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkConfirmDialog(true)}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors hover:bg-red-500/20"
+                      style={{
+                        background: "rgba(239,68,68,0.12)",
+                        color: "#ef4444",
+                        border: "1px solid rgba(239,68,68,0.3)",
+                      }}
+                      data-ocid="passwords.bulk_delete_button"
+                    >
+                      <Trash2 size={12} />
+                      Delete
+                    </button>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
-          )}
-        </div>
-      </div>
 
-      {/* ── RIGHT: Detail Panel ── */}
-      <div
-        className={[
-          "flex-1 flex flex-col",
-          "md:flex", // always visible on md+
-          mobileShowDetail ? "flex" : "hidden", // show on mobile only when selected
-        ].join(" ")}
-        style={{
-          background: "rgba(10,15,30,0.45)",
-          minHeight: 0,
-          overflow: "hidden",
-        }}
-        data-ocid="passwords.detail_panel"
-      >
-        {selectedEntry ? (
-          <DetailPanel
-            entry={{
-              ...selectedEntry,
-              email: selectedEntry.email ?? "",
-              category: selectedEntry.category ?? "",
-              totp: selectedEntry.totp ?? "",
-              customFields: selectedEntry.customFields ?? [],
-            }}
-            onClose={() => setMobileShowDetail(false)}
-            onDeleted={handleDeleted}
-            onEditRequest={(entry) => setEditEntry(entry)}
-          />
-        ) : (
-          <div
-            className="flex-1 flex flex-col items-center justify-center gap-3 px-6"
-            data-ocid="passwords.detail.empty_state"
-          >
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{
-                background: "rgba(34,211,238,0.06)",
-                border: "1px solid rgba(34,211,238,0.12)",
-              }}
-            >
-              <KeyRound size={28} style={{ color: "rgba(34,211,238,0.4)" }} />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium" style={{ color: "#9BB0C9" }}>
-                Select a password to view details
-              </p>
-              <p
-                className="text-xs mt-1"
-                style={{ color: "rgba(155,176,201,0.5)" }}
-              >
-                Click any entry from the list on the left
-              </p>
+            {/* Search */}
+            <div className="relative">
+              <Search
+                size={13}
+                className="absolute left-3 top-1/2 -translate-y-1/2"
+                style={{ color: "#9BB0C9" }}
+              />
+              <Input
+                data-ocid="passwords.search_input"
+                placeholder={t.search}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-8 text-sm"
+                style={{
+                  background: "#0D1F3A",
+                  border: "1px solid #1A3354",
+                  color: "#EAF2FF",
+                }}
+              />
             </div>
           </div>
-        )}
-      </div>
+
+          {/* List entries */}
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{
+              scrollbarWidth: "thin",
+              scrollbarColor: "#1A3354 transparent",
+            }}
+          >
+            {isLoading ? (
+              <div
+                className="flex items-center gap-2 p-5"
+                data-ocid="passwords.loading_state"
+              >
+                <Loader2
+                  className="animate-spin"
+                  size={16}
+                  style={{ color: "#22D3EE" }}
+                />
+                <span className="text-sm" style={{ color: "#9BB0C9" }}>
+                  {t.loading}
+                </span>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div
+                className="text-center py-12 px-4"
+                data-ocid="passwords.empty_state"
+              >
+                <KeyRound
+                  size={32}
+                  className="mx-auto mb-3 opacity-30"
+                  style={{ color: "#22D3EE" }}
+                />
+                <p className="text-sm" style={{ color: "#9BB0C9" }}>
+                  {search ? "No results" : t.noData}
+                </p>
+                {!search && (
+                  <p className="text-xs mt-1" style={{ color: "#9BB0C9" }}>
+                    Click "+" to add your first password
+                  </p>
+                )}
+              </div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {filtered.map((p, i) => {
+                  const isSelected = p.title === selectedTitle;
+                  const isChecked = checkedTitles.has(p.title);
+                  return (
+                    <motion.div
+                      key={p.title}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      transition={{ delay: i * 0.03, duration: 0.15 }}
+                      className="group relative w-full"
+                      style={{
+                        borderBottom: `1px solid ${borderColor}`,
+                      }}
+                    >
+                      {/* Checkbox — visible in select mode, fades in on hover otherwise */}
+                      <div
+                        className={`absolute left-3 top-1/2 -translate-y-1/2 z-10 transition-opacity ${
+                          selectMode
+                            ? "opacity-100"
+                            : "opacity-0 group-hover:opacity-100"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!selectMode) setSelectMode(true);
+                            toggleCheck(p.title);
+                          }}
+                          className="p-0.5 rounded transition-colors hover:bg-white/10"
+                          aria-label={isChecked ? "Uncheck" : "Check"}
+                          aria-checked={isChecked}
+                          data-ocid={`passwords.item.checkbox.${i + 1}`}
+                        >
+                          {isChecked ? (
+                            <CheckSquare
+                              size={15}
+                              style={{ color: "#22D3EE" }}
+                            />
+                          ) : (
+                            <Square size={15} style={{ color: "#9BB0C9" }} />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Main row button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectMode) {
+                            toggleCheck(p.title);
+                          } else {
+                            handleSelectEntry(p.title);
+                          }
+                        }}
+                        data-ocid={`passwords.item.${i + 1}`}
+                        className="w-full text-left flex items-center gap-3 py-3 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400"
+                        style={{
+                          paddingLeft: selectMode ? "2.5rem" : "1rem",
+                          paddingRight: "1rem",
+                          borderLeft: isChecked
+                            ? "3px solid #22D3EE"
+                            : isSelected
+                              ? "3px solid #22D3EE"
+                              : "3px solid transparent",
+                          background: isChecked
+                            ? "rgba(34,211,238,0.08)"
+                            : isSelected
+                              ? "rgba(34,211,238,0.06)"
+                              : "transparent",
+                        }}
+                      >
+                        {/* Icon */}
+                        <div
+                          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+                          style={{
+                            background:
+                              isChecked || isSelected
+                                ? "rgba(34,211,238,0.12)"
+                                : "rgba(255,255,255,0.05)",
+                          }}
+                        >
+                          <Lock
+                            size={14}
+                            style={{
+                              color:
+                                isChecked || isSelected ? "#22D3EE" : "#9BB0C9",
+                            }}
+                          />
+                        </div>
+
+                        {/* Text */}
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="text-sm font-semibold truncate"
+                            style={{
+                              color:
+                                isChecked || isSelected ? "#EAF2FF" : "#CBD5E1",
+                            }}
+                          >
+                            {p.title}
+                          </p>
+                          <p
+                            className="text-xs truncate mt-0.5"
+                            style={{ color: "#9BB0C9" }}
+                          >
+                            {p.username || p.email || p.url || "—"}
+                          </p>
+                        </div>
+
+                        {/* Badges */}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {p.totp && (
+                            <span
+                              className="text-[9px] px-1 rounded"
+                              style={{
+                                background: "rgba(168,85,247,0.15)",
+                                color: "#A855F7",
+                              }}
+                            >
+                              2FA
+                            </span>
+                          )}
+                          {p.blob && (
+                            <Paperclip size={10} style={{ color: "#9BB0C9" }} />
+                          )}
+                        </div>
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            )}
+          </div>
+        </ResizablePanel>
+
+        {/* Drag handle between panels — desktop only */}
+        <ResizableHandle className="hidden md:flex" />
+
+        {/* RIGHT: Detail Panel */}
+        <ResizablePanel
+          defaultSize={defaultLayout[1]}
+          className={[
+            "flex flex-col",
+            mobileShowDetail ? "flex" : "hidden md:flex",
+          ].join(" ")}
+          style={{
+            background: "rgba(10,15,30,0.45)",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+          data-ocid="passwords.detail_panel"
+        >
+          {selectedEntry ? (
+            <DetailPanel
+              entry={{
+                ...selectedEntry,
+                email: selectedEntry.email ?? "",
+                category: selectedEntry.category ?? "",
+                totp: selectedEntry.totp ?? "",
+                customFields: selectedEntry.customFields ?? [],
+              }}
+              onClose={() => setMobileShowDetail(false)}
+              onDeleted={handleDeleted}
+              onEditRequest={(entry) => setEditEntry(entry)}
+            />
+          ) : (
+            <div
+              className="flex-1 flex flex-col items-center justify-center gap-3 px-6"
+              data-ocid="passwords.detail.empty_state"
+            >
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: "rgba(34,211,238,0.06)",
+                  border: "1px solid rgba(34,211,238,0.12)",
+                }}
+              >
+                <KeyRound size={28} style={{ color: "rgba(34,211,238,0.4)" }} />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium" style={{ color: "#9BB0C9" }}>
+                  Select a password to view details
+                </p>
+                <p
+                  className="text-xs mt-1"
+                  style={{ color: "rgba(155,176,201,0.5)" }}
+                >
+                  Click any entry from the list on the left
+                </p>
+              </div>
+            </div>
+          )}
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {/* ── Dialogs ── */}
       <AddPasswordDialog
@@ -2266,6 +2555,73 @@ export default function PasswordsPage() {
               setGeneratedPassword(pwd);
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk Delete Confirmation Dialog ── */}
+      <Dialog
+        open={showBulkConfirmDialog}
+        onOpenChange={setShowBulkConfirmDialog}
+      >
+        <DialogContent
+          data-ocid="passwords.bulk_delete.dialog"
+          style={{
+            background: "#0D1F3A",
+            border: "1px solid rgba(239,68,68,0.3)",
+            color: "#EAF2FF",
+            maxWidth: 400,
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{ color: "#EAF2FF" }}>
+              Delete {checkedTitles.size} password
+              {checkedTitles.size !== 1 ? "s" : ""}?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <p className="text-sm" style={{ color: "#9BB0C9" }}>
+              This will permanently delete{" "}
+              <span className="font-semibold" style={{ color: "#EAF2FF" }}>
+                {checkedTitles.size} password
+                {checkedTitles.size !== 1 ? "s" : ""}
+              </span>
+              . This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkConfirmDialog(false)}
+                disabled={isBulkDeleting}
+                className="flex-1 rounded-full"
+                style={{
+                  borderColor: "#1A3354",
+                  color: "#9BB0C9",
+                  background: "transparent",
+                }}
+                data-ocid="passwords.bulk_delete.cancel_button"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBulkDeleteConfirm}
+                disabled={isBulkDeleting}
+                className="flex-1 rounded-full font-semibold"
+                style={{
+                  background: "#ef4444",
+                  color: "#fff",
+                  opacity: isBulkDeleting ? 0.7 : 1,
+                }}
+                data-ocid="passwords.bulk_delete.confirm_button"
+              >
+                {isBulkDeleting ? (
+                  <Loader2 size={14} className="animate-spin mr-1" />
+                ) : (
+                  <Trash2 size={14} className="mr-1" />
+                )}
+                {isBulkDeleting ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -620,7 +620,10 @@ function FeedbackItem({
       </div>
 
       {/* Message */}
-      <p className="text-sm leading-relaxed pl-9" style={{ color: "#EAF2FF" }}>
+      <p
+        className="text-sm leading-relaxed pl-0 sm:pl-9"
+        style={{ color: "#EAF2FF" }}
+      >
         {fb.message}
       </p>
 
@@ -629,7 +632,7 @@ function FeedbackItem({
         <motion.div
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="ml-9 mt-1 rounded-lg px-3 py-2.5 flex flex-col gap-1"
+          className="ml-0 sm:ml-9 mt-1 rounded-lg px-3 py-2.5 flex flex-col gap-1"
           style={{
             background: "rgba(34,197,94,0.06)",
             border: "1px solid rgba(34,197,94,0.2)",
@@ -666,7 +669,7 @@ function FeedbackItem({
             className="overflow-hidden"
           >
             <div
-              className="ml-9 mt-1 rounded-lg p-3 flex flex-col gap-2"
+              className="mt-1 rounded-lg p-3 flex flex-col gap-2 ml-0 sm:ml-9"
               style={{
                 background: "rgba(255,255,255,0.03)",
                 border: "1px solid #1A3354",
@@ -678,6 +681,7 @@ function FeedbackItem({
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 rows={3}
+                className="w-full"
                 style={{
                   background: "rgba(255,255,255,0.03)",
                   border: "1px solid #1A3354",
@@ -729,7 +733,7 @@ function FeedbackItem({
       </AnimatePresence>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-2 pl-9 flex-wrap">
+      <div className="flex items-center gap-2 pl-0 sm:pl-9 flex-wrap">
         {/* Reply button */}
         <button
           type="button"

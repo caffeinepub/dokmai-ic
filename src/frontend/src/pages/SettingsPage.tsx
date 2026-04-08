@@ -222,9 +222,12 @@ export default function SettingsPage() {
   const existingTitles = (passwords ?? []).map((p) => p.title);
 
   return (
-    <div className="flex flex-col gap-5 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: "#EAF2FF" }}>
+    <div className="flex flex-col gap-4 sm:gap-5 w-full max-w-2xl px-0 sm:px-0">
+      <div className="px-1">
+        <h1
+          className="text-xl sm:text-2xl font-bold"
+          style={{ color: "#EAF2FF" }}
+        >
           {t.settingsTitle}
         </h1>
         <p className="text-sm" style={{ color: "#9BB0C9" }}>
@@ -237,7 +240,7 @@ export default function SettingsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="card-gradient-border p-5"
+        className="card-gradient-border p-4 sm:p-5"
       >
         <h3 className="font-semibold mb-4 text-sm" style={{ color: "#22D3EE" }}>
           Profile
@@ -262,6 +265,7 @@ export default function SettingsPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSaveProfile();
               }}
+              className="h-11 sm:h-9"
               style={{
                 background: "#071427",
                 border: "1px solid #1A3354",
@@ -292,6 +296,7 @@ export default function SettingsPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSaveProfile();
               }}
+              className="h-11 sm:h-9"
               style={{
                 background: "#071427",
                 border: "1px solid #1A3354",
@@ -308,7 +313,7 @@ export default function SettingsPage() {
             data-ocid="settings.profile_save.primary_button"
             onClick={handleSaveProfile}
             disabled={isSavingProfile}
-            className="rounded-full font-semibold text-sm px-6"
+            className="rounded-full font-semibold text-sm px-6 min-h-[44px]"
             style={{ background: "#22D3EE", color: "#071427" }}
           >
             {isSavingProfile ? (
@@ -324,7 +329,7 @@ export default function SettingsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="card-gradient-border p-5"
+        className="card-gradient-border p-4 sm:p-5"
       >
         <h3 className="font-semibold mb-4 text-sm" style={{ color: "#22D3EE" }}>
           Identity
@@ -339,7 +344,7 @@ export default function SettingsPage() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="mono-id flex-1 min-w-0 truncate">
+              <div className="mono-id flex-1 min-w-0 truncate text-xs sm:text-sm">
                 {principal || "Not authenticated"}
               </div>
               {principal && (
@@ -347,7 +352,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={handleCopyPrincipal}
                   data-ocid="settings.identity_copy.button"
-                  className="flex-shrink-0 p-2 rounded-lg transition-all"
+                  className="flex-shrink-0 p-2 rounded-lg transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
                   style={{
                     background: copied
                       ? "rgba(34,197,94,0.12)"
@@ -399,7 +404,7 @@ export default function SettingsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="card-gradient-border p-5"
+        className="card-gradient-border p-4 sm:p-5"
       >
         <h3 className="font-semibold mb-4 text-sm" style={{ color: "#22D3EE" }}>
           {t.settingsLanguage}
@@ -407,7 +412,7 @@ export default function SettingsPage() {
         <Select value={lang} onValueChange={(v) => setLang(v as LangCode)}>
           <SelectTrigger
             data-ocid="settings.language.select"
-            className="max-w-xs"
+            className="w-full max-w-xs h-11 sm:h-9"
             style={{
               background: "#071427",
               border: "1px solid #1A3354",
@@ -437,7 +442,7 @@ export default function SettingsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18 }}
-        className="card-gradient-border p-5"
+        className="card-gradient-border p-4 sm:p-5"
       >
         <h3 className="font-semibold mb-3 text-sm" style={{ color: "#22D3EE" }}>
           Import & Export
@@ -449,7 +454,7 @@ export default function SettingsPage() {
           <Button
             data-ocid="settings.csv_import.open_modal_button"
             onClick={() => setShowCsvImport(true)}
-            className="rounded-full text-sm font-medium"
+            className="rounded-full text-sm font-medium min-h-[44px]"
             style={{
               background: "rgba(34,211,238,0.1)",
               border: "1px solid rgba(34,211,238,0.3)",
@@ -463,7 +468,7 @@ export default function SettingsPage() {
           <Button
             data-ocid="settings.csv_export.open_modal_button"
             onClick={() => setShowCsvExport(true)}
-            className="rounded-full text-sm font-medium"
+            className="rounded-full text-sm font-medium min-h-[44px]"
             style={{
               background: "rgba(34,211,238,0.1)",
               border: "1px solid rgba(34,211,238,0.3)",
@@ -478,7 +483,7 @@ export default function SettingsPage() {
             data-ocid="settings.json_export.primary_button"
             onClick={handleJsonExport}
             disabled={isExportingJson}
-            className="rounded-full text-sm font-medium"
+            className="rounded-full text-sm font-medium min-h-[44px]"
             style={{
               background: "rgba(168,85,247,0.1)",
               border: "1px solid rgba(168,85,247,0.3)",
@@ -513,7 +518,7 @@ export default function SettingsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="card-gradient-border p-5"
+        className="card-gradient-border p-4 sm:p-5"
       >
         <h3 className="font-semibold mb-3 text-sm" style={{ color: "#22D3EE" }}>
           Internet Identity
@@ -525,7 +530,7 @@ export default function SettingsPage() {
           href="https://identity.ic0.app"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all min-h-[44px]"
           style={{
             background: "rgba(34,211,238,0.08)",
             border: "1px solid rgba(34,211,238,0.25)",
@@ -543,14 +548,14 @@ export default function SettingsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
-        className="flex items-center"
+        className="flex items-center pb-4"
       >
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               data-ocid="settings.logout.open_modal_button"
               variant="outline"
-              className="rounded-full text-sm"
+              className="rounded-full text-sm min-h-[44px]"
               style={{
                 borderColor: "rgba(239,68,68,0.4)",
                 color: "#ef4444",
@@ -563,6 +568,7 @@ export default function SettingsPage() {
           </AlertDialogTrigger>
           <AlertDialogContent
             data-ocid="settings.logout.dialog"
+            className="w-[95vw] max-w-md"
             style={{
               background: "#0D1F3A",
               border: "1px solid rgba(239,68,68,0.3)",
@@ -577,7 +583,7 @@ export default function SettingsPage() {
                 {t.settingsLogoutConfirm}
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
               <AlertDialogCancel
                 data-ocid="settings.logout.cancel_button"
                 style={{
