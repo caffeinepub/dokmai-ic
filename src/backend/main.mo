@@ -337,9 +337,10 @@ actor {
     customFields : [CustomField],
     blob : ?Storage.ExternalBlob
   ) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can add password entries");
-    };
+    if (caller.isAnonymous()) { Runtime.trap("Unauthorized: Only users can add password entries") };
+    // Auto-register user if not yet known
+    AccessControl.ensureRegistered(accessControlState, caller);
+    userIdSet.add(caller);
     ensurePasswordVaults();
     switch (passwordVaultsV2.get(caller)) {
       case (?vault) {
@@ -374,9 +375,7 @@ actor {
   };
 
   public query ({ caller }) func getAllPasswordEntriesFromVault() : async [PasswordEntry] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can retrieve password entries");
-    };
+    if (caller.isAnonymous()) { return [] };
     ensurePasswordVaults();
     switch (passwordVaultsV2.get(caller)) {
       case (?vault) { vault.entries };
@@ -513,9 +512,7 @@ actor {
   };
 
   public query ({ caller }) func getAllSecureNotesFromVault() : async [SecureNote] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can retrieve secure notes");
-    };
+    if (caller.isAnonymous()) { return [] };
     ensurePasswordVaults();
     switch (passwordVaultsV2.get(caller)) {
       case (?vault) { vault.notes.sort() };
@@ -881,11 +878,12 @@ actor {
     };
   };
 
-  // User: record login activity (called on login)
+  // User: record login activity (called on login) — auto-registers user on first call
   public shared ({ caller }) func recordLoginActivity(timestamp : Int) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      return;
-    };
+    if (caller.isAnonymous()) { return };
+    // Auto-register user if not yet known
+    AccessControl.ensureRegistered(accessControlState, caller);
+    userIdSet.add(caller);
     switch (loginActivityLog.get(caller)) {
       case (?existing) {
         loginActivityLog.add(caller, { principal = caller; lastLoginTimestamp = timestamp; loginCount = existing.loginCount + 1 });

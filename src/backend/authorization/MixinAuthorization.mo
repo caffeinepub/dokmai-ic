@@ -1,9 +1,10 @@
 import AccessControl "./access-control";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
+import Runtime "mo:core/Runtime";
 
 mixin (accessControlState : AccessControl.AccessControlState) {
-  // Hardcoded admin principal — always seeded at startup
+  // Hardcoded admin principal — kept for stable compatibility
   let HARDCODED_ADMIN : Principal = Principal.fromText("das6p-4z7ap-pfikd-uyqal-be35z-ijkl6-gqwz6-npfvx-7sf5b-ekchz-vqe");
 
   // Seed the hardcoded admin into the role map on first access
